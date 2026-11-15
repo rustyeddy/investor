@@ -1,12 +1,19 @@
 # Investor
 
-Investor is the Go orchestration layer for an AI assisted trading firm. It
-defines agents, their skills and permitted tools, and the workflows they run.
-The same engine runs from a command line or a foreground HTTP service.
+Investor is the Go orchestration layer for an AI-assisted trading research firm. It coordinates agents, skills, permitted tools, workflows, and **the research journal**. The same engine runs from the CLI or a foreground HTTP service.
 
-This first implementation runs **dry-run workflows only**. It validates the
-configuration and exercises agent sequencing and handoffs. It does not call an
-LLM, analyze markets, access Trader, or place trades.
+The journal is central: hypotheses, market observations, opportunities (including rejections), paper orders, decisions, and outcomes must be traceable to their evidence. Without durable records, we cannot tell whether a trading idea works.
+
+The current implementation is **dry-run only**. It validates definitions and exercises agent handoffs; it does not call LLMs, analyze markets, access Trader, or place trades.
+
+## Development phases
+
+1. **Foundation:** define roles, policy, skills (`skills/<name>/SKILL.md`), workflow contracts, and journal records.
+2. **Forward research:** connect LLMs and current market data, find opportunities, record paper trades, monitor outcomes, and review performance—**without Trader**.
+3. **Trader integration:** add historical data, backtests, studies, and reproducible strategy evaluation through Trader adapters.
+4. **Operations:** expand scheduling, recovery, Tulip integration, and controls only as required by working workflows.
+
+No live-money execution is authorized in these phases.
 
 ## Run
 
@@ -20,11 +27,7 @@ bin/investor run -workflow research -objective 'Evaluate a trend-following hypot
 bin/investor serve -listen 127.0.0.1:8090
 ```
 
-Each command accepts `-config path/to/firm.json`; the default is
-`examples/firm.json`, relative to the working directory. CLI results are JSON
-on stdout and logs go to stderr. Failed commands exit nonzero. The service
-runs in the foreground for a process supervisor and shuts down on SIGINT or
-SIGTERM.
+Each command accepts `-config path/to/firm.json` (default: `examples/firm.json`, relative to the working directory). CLI results are JSON on stdout; logs are on stderr; failures exit nonzero. The foreground service shuts down on SIGINT/SIGTERM.
 
 ```sh
 curl http://127.0.0.1:8090/api/manager/agents
@@ -33,65 +36,37 @@ curl -X POST http://127.0.0.1:8090/api/manager/runs \
   -d '{"workflow":"research","objective":"Evaluate a trend-following hypothesis"}'
 ```
 
-HTTP endpoints: `GET /api/health`, `GET /api/manager/{agents,skills,tools,workflows}`,
-and `POST /api/manager/runs`. Runs are synchronous, have a one-minute request
-deadline, and return their results directly. There is no persistent run store,
-background queue, scheduler, authentication, or API for modifying definitions
-yet. The default listener is loopback; authenticated remote access is future work.
+Endpoints: `GET /api/health`, `GET /api/manager/{agents,skills,tools,workflows}`, and `POST /api/manager/runs`. Runs are synchronous with a one-minute request deadline. Persistence, queues, scheduling, authentication, and definition updates are not implemented. The listener defaults to loopback.
 
 ## Responsibilities
 
-| Component                                     | Responsibility                                                                                                             |
-|-----------------------------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| Investor                                      | Agent lifecycle, model runtimes, skills, tool permissions, workflow coordination, and eventually durable run/audit records |
-| [Trader](https://github.com/rustyeddy/trader) | Historical/realtime data, deterministic backtesting, and eventual trade execution                                          |
-| Tulip (`../tulip`)                            | GUI and backend-for-frontend consuming Investor's manager API                                                              |
+| Component | Responsibility |
+| --- | --- |
+| **Investor** | Research agents, model runtimes, skills, tool permissions, workflows, paper-trade coordination, and authoritative journal/audit records |
+| [Trader](https://github.com/rustyeddy/trader) | Market data, deterministic analysis, historical backtests/studies, and eventual execution |
+| **Tulip** (`../tulip`) | GUI and backend-for-frontend using Investor and Trader APIs |
 
-Trader and Tulip are integration targets, not build dependencies. Investor
-does not import Trader's private runtime or duplicate its trading engine.
-Tulip already reserves `/api/manager/*`; its existing strategy/test mocks have
-not been replaced, and the GUI is not wired to these new endpoints yet.
+Trader and Tulip are integration targets, not build dependencies. Investor does not duplicate Trader's engine. Tulip reserves `/api/manager/*`, but its mocks are not yet connected to Investor.
 
 ## Agent model
 
-`examples/firm.json` defines research, backtest, risk, portfolio,
-execution, and operations roles. The research workflow runs research →
-backtest → risk → portfolio → operations. Execution is defined but not
-scheduled.
+`examples/firm.json` currently defines research, backtest, risk, portfolio, execution, and operations roles. Its sample workflow runs research → backtest → risk → portfolio → operations; this is a **dry-run prototype**, not the Phase 1 forward-paper workflow.
 
-- An **agent** has an ID, role, skill references, and a tool allowlist.
-- A **skill** contains reusable instructions supplied to the runtime.
-- A **tool** declares a capability; executable implementations are registered
-  separately in Go. The example Trader tools are declarations only.
-- A **workflow** is an ordered sequence of agents. Each receives the objective
-  and preceding results. The first failure stops the workflow.
-- A **runtime** implements `firm.Runtime`. The shipped `firm.DryRun` reports
-  what would run without performing analysis. Model-backed runtimes are next.
+- **Agent:** role, skill references, and tool allowlist.
+- **Skill:** reusable instructions; move toward standard `skills/<name>/SKILL.md` files.
+- **Tool:** declared capability, separately implemented in Go; example Trader tools are declarations only.
+- **Workflow:** ordered agent steps receiving the objective and prior results; the first failure stops the run.
+- **Runtime:** `firm.Runtime`; the shipped `firm.DryRun` shows what would execute.
 
-The engine enforces tool allowlists and blocks all tools in dry-run
-mode.  Runtime implementations are trusted Go code, not sandboxed
-processes. Natural language risk reviews are advisory; future
-execution must enforce structured approval and deterministic risk
-policy outside the model.
-
-## Next implementation steps
-
-1. Select an AI runtime and add bounded model/tool iterations, timeouts, usage
-   budgets, and structured agent outputs.
-2. Agree on Trader's supported integration contract and connect historical
-   data and backtests through adapters.
-3. Persist runs, tool calls, artifacts, and audit events; introduce background
-   jobs, recovery, and schedules.
-4. Connect Tulip's backend to the manager API and add authenticated access.
-5. Add structured portfolio/risk decisions and paper execution with
-   reconciliation before considering live execution.
+Dry-run blocks all tools; allowlists are enforced. Go runtimes are trusted code, not sandboxes. LLM risk reviews are advisory; deterministic policy must govern all paper execution.
 
 ## Development
+
+Follow [AGENTS.md](AGENTS.md) and [docs/development.org](docs/development.org) for the issue → branch → PR → review → merge process.
 
 ```sh
 go test -race ./...
 go vet ./...
 ```
 
-Code lives in `cmd/investor` (CLI and process lifecycle), `internal/firm`
-(definitions and engine), and `internal/service` (HTTP transport).
+Source packages: `cmd/investor` (CLI), `internal/firm` (engine), `internal/service` (HTTP).
