@@ -3,8 +3,9 @@
 Status: design specification for [issue #4](https://github.com/rustyeddy/investor/issues/4).
 No scheduler, queue, model runtime, simulator or persistent journal is implemented
 by this document. The CLI sample remains a dry-run preview. Use the
-[role contracts](../roles/README.md), [paper policy](paper-trading-policy.md), and
-[manual walkthrough](manual-research-session.md) together.
+[role contracts](../roles/README.md), [paper policy](paper-trading-policy.md),
+[manual walkthrough](manual-research-session.md), and
+[research journal contract](research-journal.md) together.
 
 Phase 1 uses current observations, starts with forex, supports long/short swing
 and intraday strategies, and does not depend on Trader. Rusty activates strategy
