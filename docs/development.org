@@ -1,0 +1,59 @@
+#+TITLE: Investor Development Workflow
+#+OPTIONS: toc:2
+
+* Purpose
+This is the working agreement for Codex and human contributors. =AGENTS.md= contains mandatory rules; this document explains how to apply them. Investor is the name of the project (formerly Trade Manager).
+
+* 1. Select an issue
+- Use a GitHub issue with a clear objective and acceptance criteria.
+- Check related work, current code, and existing PRs before editing.
+- Keep each change focused. Record additional ideas in separate issues.
+- When a requirement or risk-policy choice is ambiguous, ask Rusty before implementing.
+
+* 2. Prepare a branch
+- Inspect the working tree and preserve any user changes.
+- Fetch the latest =main= and branch from it; never develop directly on =main=.
+- Prefer names such as =docs/issue-2-foundation= or =feat/issue-8-journal=.
+- Do not overwrite shared work or force-push protected branches.
+
+* 3. Implement
+- Prefer the smallest idiomatic Go change; avoid speculative abstractions.
+- Maintain Investor / Trader / Tulip boundaries and paper-only safeguards.
+- Add focused tests for behavior changes and update relevant documentation.
+- Never silently change role authority, trading policy, or live-order permissions.
+
+* 4. Verify
+For Go changes, run:
+
+#+begin_src sh
+go test -race ./...
+go vet ./...
+#+end_src
+
+For documentation-only changes, check links, examples, accuracy, and formatting. State what was tested and what was not; never claim unrun checks passed.
+
+* 5. Open a pull request
+- Push the branch and open a PR targeting =main=.
+- Link the issue (e.g., =Closes #12= only when the PR fully satisfies it).
+- Include summary, motivation, files/areas affected, verification results, and remaining limitations.
+- Keep unrelated refactors and feature additions out of the PR.
+
+* 6. Review and revise
+- Review the diff for correctness, simplicity, interfaces, tests, security, risk boundaries, and documentation.
+- Distinguish blocking defects from optional improvements.
+- Address review comments and rerun affected tests.
+- Do not treat an AI-generated self-review as independent approval.
+- Request Rusty's review/approval before merge.
+
+* 7. Merge and close
+- Confirm required approvals and passing checks.
+- Merge using the repository's configured merge method only after approval.
+- Never bypass protections or force-push =main=.
+- Verify the result on =main= and close the linked issue when complete.
+- Report what changed, what passed, and any follow-up issues.
+
+* Investor research versus development
+The development workflow above governs repository changes. Investor's trading workflows are separate: current market observation → opportunity proposal → independent challenge → deterministic risk check → paper decision/order → journal → outcome review. Preserve all proposals (including rejected or unfilled proposals) and their evidence. Investor owns the authoritative journal; Trader will supply quantitative capabilities later.
+
+* Future refinements
+If repeated PR preparation or review steps become cumbersome, factor them into development-only Codex skills under =.agents/skills/=; do not mix them into Investor's trading-agent =skills/=.
