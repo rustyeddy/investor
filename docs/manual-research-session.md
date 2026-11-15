@@ -12,6 +12,13 @@ until software exists; future Investor performs those checks and may submit
 qualifying paper orders automatically. A reject/defer decision also completes
 the research workflow. Proposal, eligibility, order and fill remain distinct.
 
+The [operational specification](workflows.md) defines triggers, owners, retries,
+the paper lifecycle, and PASS / WATCH / REJECT / INSUFFICIENT_DATA decisions.
+Use those explicit outcomes in new records; the earlier generic `defer` label
+must distinguish a known unmet trigger (WATCH) from missing inputs
+(INSUFFICIENT_DATA). Supply role and activated strategy/policy contents directly
+to a future model runtime; links inside skill Markdown are not loaded context.
+
 ## Session record
 
 Create a durable folder or notebook with a unique session ID. Retain source
@@ -24,7 +31,7 @@ snapshots and the shared metadata in the role contracts for every artifact.
 | Proposal | Strategy Researcher | Strategy version, long/short, thesis/falsifier, entry/stop/exit, units, costs/financing, swing days or intraday close, expiry and cadence → Challenger pass |
 | Challenge | Strategy Researcher/Challenger | Counterevidence, alternative explanations, recommendation and reviewer identity → Risk Officer |
 | Risk memo/check | Risk Officer + manual evaluator | Advisory memo separately from rule inputs/results, strategy/policy activation references and validity → Paper Trader |
-| Paper decision/lifecycle | Paper Trader | Order/reject/defer reason; reservation, order ID, fills/unfilled status, scheduled exits, monitoring and incidents → Performance Analyst |
+| Paper decision/lifecycle | Paper Trader | PASS / WATCH / REJECT / INSUFFICIENT_DATA and reasons; reservation/order only after PASS, fills/unfilled status, monitoring and incidents → Performance Analyst |
 | Session/weekly review | Director / Performance Analyst | All candidates, outcomes, missing data, lessons and follow-up questions |
 
 Strategy/policy activation records identify Rusty, exact revisions, account scope
@@ -52,9 +59,10 @@ require versioned approval. Preserve earlier artifacts and rejected proposals.
    risk fraction (default 1%). Check aggregate, correlated/currency, notional,
    margin and simultaneous exposure, including pending entries. Missing inputs
    are `blocked`, breached limits `fail`; neither can be overridden by an LLM.
-5. A passing check under active approved versions goes directly to Paper Trader.
-   Otherwise record reject/defer and reasons. Changing a strategy or policy
-   requires Rusty's version approval; an ordinary eligible trade does not.
+5. PASS under active approved versions goes directly to Paper Trader. Otherwise
+   record WATCH, REJECT or INSUFFICIENT_DATA and reasons using the workflow
+   decision rules. Changing a strategy or policy requires Rusty's version
+   approval; an ordinary eligible trade does not.
 
 ## Paper execution and monitoring
 
@@ -102,8 +110,8 @@ to `phase1-paper/0.2.0-draft`, and strategy to unapproved `fx-swing-demo/1`.
 | `demo-exit-plan-1` at 15:02 | Three calendar days from simulated fill time; earliest stop, target or deadline exits, stop wins a simultaneous stop/target ambiguity; next tradable observation if closed; hourly reviews plus protective price triggers; all illustrative strategy settings, not activated |
 | `demo-challenge-1` at 15:03 | Same human in separate challenger pass: reversal/currency-event risk, unverified costs and execution model; recommend defer |
 | `demo-risk-1` at 15:04 | Arithmetic below fits the default per-trade budget; aggregate/group/margin checks and strategy activation blocked |
-| `demo-decision-1` at 15:04 | `defer: configuration-unapproved-or-incomplete`; orders 0, fills 0; no per-trade human approval requested |
-| `demo-review-1` at 15:05 | One candidate/proposal/defer; no trades, realized P&L not applicable; request missing configuration/evidence |
+| `demo-decision-1` at 15:04 | `INSUFFICIENT_DATA: configuration-unapproved-or-incomplete`; orders 0, fills 0; no per-trade human approval requested |
+| `demo-review-1` at 15:05 | One candidate/proposal/INSUFFICIENT_DATA decision; no trades, realized P&L not applicable; request missing configuration/evidence |
 
 For arithmetic only, assume equity USD 10,000, no existing positions or pending
 orders, an allowed increment of 1,000 EUR units, and the fixture cost allowance:
@@ -119,8 +127,8 @@ absolute notional = 9,000 EUR * 1.1000 USD/EUR * 1 = 9,900 USD
 This is not a margin/correlation pass: those controls, the exact universe,
 event evidence, execution/cost model and strategy activation are missing.
 Default 1% per-trade risk does not waive aggregate limits. Record the blocked
-check and defer; do not manufacture missing approvals or request a one-off
-trade exception. With complete activated versions and passing checks, the same
+check and INSUFFICIENT_DATA decision; do not manufacture missing approvals or
+request a one-off trade exception. With complete activated versions and passing checks, the same
 handoff would permit paper submission automatically, with no per-trade human
 gate. In the manual session the evaluator records the calculation; in future
 software Go enforces it. Neither a passing check nor submission proves a fill.
