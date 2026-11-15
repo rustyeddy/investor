@@ -20,6 +20,18 @@ These instructions apply to all work in this repository. Read [docs/development.
 - Do not force-push `main`, bypass protected workflows, or silently change trading risk policy.
 - If permissions or required approval are missing, stop and ask.
 
+## Pull Request Completion
+
+- Every PR must reference its related GitHub issue.
+- Use `Closes #N` in the PR description when the PR
+  fully resolves the issue.
+- Use `Refs #N` for partial work.
+- Merge only after required reviews and tests pass.
+- GitHub automatically closes linked issues on merge.
+- Enable automatic deletion of merged feature branches
+  in repository settings.
+- Never automatically merge without required approval.
+
 ## Documentation ownership
 
 - `README.md`: concise purpose, current capabilities, and development phases.
