@@ -23,7 +23,7 @@ guide manual research and future implementation, not the current dry-run engine.
 
 ## Run
 
-Requires Go 1.25.1 or newer; no external Go dependencies.
+Requires Go 1.25.1 or newer. YAML skill frontmatter uses `gopkg.in/yaml.v3`.
 
 ```sh
 go build -o bin/investor ./cmd/investor
@@ -32,6 +32,8 @@ bin/investor plan -workflow research
 bin/investor run -workflow research -objective 'Evaluate a trend-following hypothesis'
 bin/investor serve -listen 127.0.0.1:8090
 ```
+
+Skills are loaded at startup from `skills_dir`, relative to the configuration file (the example uses `../skills`). Missing or malformed referenced skills fail validation before a run or service starts.
 
 Each command accepts `-config path/to/firm.json` (default: `examples/firm.json`, relative to the working directory). CLI results are JSON on stdout; logs are on stderr; failures exit nonzero. The foreground service shuts down on SIGINT/SIGTERM.
 
@@ -56,11 +58,11 @@ Trader and Tulip are integration targets, not build dependencies. Investor does 
 
 ## Agent model
 
-`examples/firm.json` currently defines research, backtest, risk, portfolio, execution, and operations roles. Its sample workflow runs research → backtest → risk → portfolio → operations; this is a **dry-run prototype**, not the Phase 1 forward-paper workflow.
+`examples/firm.json` previews analyst → researcher → challenger → risk → performance using the six file-backed skills. This remains a **dry-run prototype**, not an implemented research or paper-trading workflow.
 
 - **Agent:** role, skill references, and tool allowlist.
-- **Skill:** reusable instructions; move toward standard `skills/<name>/SKILL.md` files.
-- **Tool:** declared capability, separately implemented in Go; example Trader tools are declarations only.
+- **Skill:** reusable instructions loaded from `skills/<name>/SKILL.md` by stable ID. See [skill loading and migration](docs/skill-files.md); inline prompts are deprecated.
+- **Tool:** declared capability, separately implemented in Go; the example requires no tool integrations.
 - **Workflow:** ordered agent steps receiving the objective and prior results; the first failure stops the run.
 - **Runtime:** `firm.Runtime`; the shipped `firm.DryRun` shows what would execute.
 
