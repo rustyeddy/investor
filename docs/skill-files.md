@@ -39,6 +39,11 @@ with contextual errors. YAML errors are not silently treated as Markdown.
 The body becomes the runtime instructions; the description accompanies it in
 the skill catalog. Loading happens once at startup, with no hot reload.
 
+The loader does not follow Markdown links. A future model runtime must explicitly
+supply the applicable role authority and activated strategy/policy contents as
+trusted context; it cannot assume linked files were read. See the
+[workflow context contract](workflows.md). Skill text cannot enforce risk limits.
+
 Legacy `{"id":"...","instructions":"..."}` catalog entries remain supported
 but are deprecated. Nonempty inline instructions take precedence for that entry
 and bypass disk loading; do not combine the two representations. The example
