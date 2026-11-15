@@ -54,12 +54,7 @@ func execute(ctx context.Context, args []string, out io.Writer) error {
 	if fs.NArg() != 0 {
 		return errors.New("unexpected positional arguments")
 	}
-	f, err := os.Open(*path)
-	if err != nil {
-		return err
-	}
-	c, err := firm.Decode(f)
-	_ = f.Close()
+	c, err := firm.Load(*path)
 	if err != nil {
 		return fmt.Errorf("configuration: %w", err)
 	}

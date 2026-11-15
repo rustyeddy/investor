@@ -18,7 +18,8 @@ type Agent struct {
 
 type Skill struct {
 	ID           string `json:"id"`
-	Instructions string `json:"instructions"`
+	Description  string `json:"description,omitempty"`
+	Instructions string `json:"instructions,omitempty"`
 }
 
 // Tool is a capability declaration, not executable code. An adapter must
@@ -34,6 +35,7 @@ type Workflow struct {
 }
 
 type Config struct {
+	SkillsDir string     `json:"skills_dir,omitempty"`
 	Agents    []Agent    `json:"agents"`
 	Skills    []Skill    `json:"skills"`
 	Tools     []Tool     `json:"tools"`
@@ -41,6 +43,14 @@ type Config struct {
 }
 
 func Decode(r io.Reader) (Config, error) {
+	c, err := decode(r)
+	if err != nil {
+		return c, err
+	}
+	return c, c.Validate()
+}
+
+func decode(r io.Reader) (Config, error) {
 	var c Config
 	d := json.NewDecoder(r)
 	d.DisallowUnknownFields()
@@ -50,7 +60,7 @@ func Decode(r io.Reader) (Config, error) {
 	if err := d.Decode(new(any)); err != io.EOF {
 		return c, fmt.Errorf("expected a single JSON configuration")
 	}
-	return c, c.Validate()
+	return c, nil
 }
 
 func (c Config) Validate() error {
@@ -66,6 +76,9 @@ func (c Config) Validate() error {
 		return nil
 	}
 	for _, s := range c.Skills {
+		if !validSkillID(s.ID) {
+			return fmt.Errorf("invalid skill id %q", s.ID)
+		}
 		if err := add(skills, "skill", s.ID); err != nil {
 			return err
 		}
