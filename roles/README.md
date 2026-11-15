@@ -3,7 +3,10 @@
 These are Investor's logical responsibilities, not a requirement for six LLM
 processes. One model may perform several roles, but each handoff must retain its
 role, evidence, and decision record. A challenge is a separate review pass; a
-model reviewing its own proposal is not independent human approval.
+model reviewing its own proposal is not independent review. Rusty approves
+strategy and policy versions; individual qualifying paper trades need no human
+approval. Forex comes first, with stocks supported by the design; strategies
+may be long or short, primarily swing with intraday also allowed.
 
 The objective is forward market research ending in a recorded paper-trading
 decision, including rejection or deferral. Trader is not required. Read the
@@ -23,8 +26,8 @@ Every artifact includes:
 
 - Artifact ID and revision, session ID, type, logical role, author identity,
   creation time in UTC, and IDs/revisions of its inputs.
-- Policy version and approval reference; objective and instrument identifiers
-  with venue/currency where applicable.
+- Strategy and policy versions and their activation references; objective and
+  instrument identifiers with venue/currency where applicable.
 - Evidence references, source URL or file and retained snapshot, market event
   time, publication time when available, retrieval time, and known data delay.
   Unknown times are explicit, never replaced with retrieval time.
@@ -44,7 +47,8 @@ manual records now and later SQLite records, not a database schema in this issue
 - **Inputs/tools:** operator mandate, approved universe/policy, prior reviews,
   read-only journal access, task assignment, and append-only session records.
 - **Authority:** choose research questions, request revisions, and stop a
-  session. Cannot approve policy, waive a failed check, or authorize an order.
+  session. Cannot activate strategies/policy, waive a failed check, or replace
+  deterministic order eligibility.
 - **Output:** session brief with objective, universe, decision horizon,
   evidence cutoff, assigned roles, and completion criteria; final decision
   summary linking every candidate, including candidates not traded.
@@ -57,8 +61,9 @@ manual records now and later SQLite records, not a database schema in this issue
 
 - **Purpose:** describe current conditions and identify testable opportunities.
 - **Inputs/tools:** brief, timestamped market observations, issuer/exchange or
-  other identified news sources, event calendar, read-only data retrieval, and
-  append-only observation records. No broker or policy-write tools.
+  other identified news sources (including both currencies for forex), event
+  calendar, read-only data retrieval, and append-only observation records.
+  No broker or policy-write tools.
 - **Authority:** nominate or discard candidates, report conflicting sources,
   and request fresh observations. Cannot invent prices or grant trade approval.
 - **Output:** market brief and candidate list with instrument, observation,
@@ -74,14 +79,17 @@ manual records now and later SQLite records, not a database schema in this issue
   read-only journal/data access, documented calculations, and artifact append.
   Historical backtesting is optional future evidence, not a Trader dependency.
 - **Authority:** propose entry/exit conditions and requested size; recommend
-  rejection. Cannot approve its proposal or change a limit to make it pass.
+  rejection. Cannot issue its own eligibility result, activate a strategy,
+  or change a limit to make a proposal pass.
 - **Output:** proposal with thesis, disconfirming evidence, instrument/side,
-  entry condition and price bound, stop/invalidation, exit/time horizon,
-  requested quantity, costs/slippage assumptions, expiry, and source IDs.
+  approved strategy version, entry condition/bounds, stop/invalidation,
+  strategy-based exits, swing holding days and counting convention or intraday
+  session close/timezone, monitoring cadence, quantity/units, costs including
+  financing, expiry, conversion evidence for forex, and source IDs.
   A separately attributed challenge lists alternative explanations, evidence
   gaps, adverse scenarios, and `proceed`, `revise`, or `reject` recommendation.
 - **Handoff:** proposal and challenge to Risk Officer. Mark whether challenge
-  used the same model/person; do not describe that as independent approval.
+  used the same model/person; do not describe that as independent review.
 - **Failure:** unsupported entry, sizing, exit, or cost assumptions block the
   proposal; revised proposals receive new revisions and repeat review.
 
@@ -89,33 +97,40 @@ manual records now and later SQLite records, not a database schema in this issue
 
 - **Purpose:** identify risk and assemble the policy-check evidence.
 - **Inputs/tools:** proposal and challenge, immutable policy version, current
-  equity/cash/positions/pending orders, event/freshness evidence, read-only
+  approved strategy, equity/cash/margin/positions/pending orders, currency
+  conversion and correlated exposure evidence, event/freshness evidence, read-only
   portfolio access, deterministic calculator/checker, and artifact append.
 - **Authority:** recommend rejection or a halt and require corrections.
   LLM commentary cannot issue the deterministic `pass` result or override it.
 - **Output:** advisory risk memo plus a separate check record containing each
   rule's inputs, arithmetic, threshold, result, portfolio snapshot, proposal
-  revision, policy version, expiry, and evaluator identity (`manual` or Go).
+  revision, strategy/policy versions, expiry, and evaluator identity (`manual`
+  or Go). Default per-trade budget is 1% of marked account equity, drawn from
+  approved configurable policy, never the model's chosen threshold.
 - **Handoff:** failed checks to Director/Researcher; a complete passing package
-  to Rusty for approval, then Paper Trader for pre-order revalidation.
+  directly to Paper Trader for pre-order revalidation. Only configuration
+  changes or unresolved operational decisions go to Rusty; no per-trade approval.
 - **Failure:** any failed, unknown, stale, or unverifiable rule blocks new
   exposure. Record the failure; no confidence score substitutes for evidence.
 
 ## Paper Trader
 
 - **Purpose:** record authorized simulated orders and monitor their lifecycle.
-- **Inputs/tools:** exact approved proposal revision, policy/check/approval
-  records, fresh observations, reconciled paper ledger, paper-only simulator
-  or manual ledger, and append-only order/fill/monitoring records.
-- **Authority:** execute only within the approved paper envelope, cancel
-  expired entries, and follow approved exits. No live endpoint, credentials,
-  discretionary enlargement, stop widening, or policy-writing capability.
+- **Inputs/tools:** exact eligible proposal revision, active strategy/policy
+  versions and activation references, deterministic check, fresh observations,
+  reconciled paper ledger, paper-only simulator or manual ledger, and append-only
+  order/fill/monitoring records.
+- **Authority:** automatically execute qualifying long/short paper orders under
+  the approved strategy/policy, cancel expired entries, and follow strategy exits
+  and duration-appropriate monitoring without individual human approvals. No live
+  endpoint, credentials, discretionary enlargement, stop widening, or
+  policy-writing capability.
 - **Output:** decision (`paper-order`, `reject`, or `defer`) with reasons;
   unique order ID, submission time, quantity, price bounds, fill assumptions,
   observed simulated fills or explicit unfilled status, and position updates.
 - **Handoff:** execution and exceptions to Director/Risk Officer; full lifecycle
   to Performance Analyst. A paper order is not evidence of a fill.
-- **Failure:** changed inputs invalidate approval/check eligibility; recheck
+- **Failure:** changed inputs invalidate check eligibility; recheck
   before submission. Unknown order status requires reconciliation, never a
   blind retry. Data outages freeze new exposure and produce an incident record.
 
@@ -123,7 +138,8 @@ manual records now and later SQLite records, not a database schema in this issue
 
 - **Purpose:** evaluate research quality and paper outcomes without hindsight.
 - **Inputs/tools:** all candidates, proposals, challenges, decisions, orders,
-  fills, costs, marks, incidents, policy/model versions; read-only journal and
+  fills, financing/borrow costs where applicable, currency conversions, marks,
+  incidents, strategy/policy/model versions; read-only journal and
   reproducible calculations, plus append-only review records.
 - **Authority:** recommend research or policy changes for Rusty's review.
   Cannot rewrite decisions, retroactively improve fills, or activate changes.

@@ -1,150 +1,182 @@
 # Phase 1 paper-trading policy
 
-Policy ID: `phase1-paper`. Version: `0.1.0-draft`. Status: **UNAPPROVED**.
-Owner/approver: Rusty. Approval reference and effective time: **unset**.
+Policy ID: `phase1-paper`. Version: `0.2.0-draft`. Status: **UNAPPROVED**.
+Owner/approver: Rusty. Activation reference and effective time: **unset**.
 
-This is a proposed operating contract for review under
-[issue #5](https://github.com/rustyeddy/investor/issues/5), not an active trading
-configuration. No paper order is authorized by this document or its merge.
-Research, challenge, and recorded reject/defer decisions can proceed while
-approval is pending. The current Go program does not implement these checks.
+This revision incorporates [Rusty's PR #8 review](https://github.com/rustyeddy/investor/pull/8#pullrequestreview-5913143168).
+The confirmed design is forex first, with support for stocks, primarily swing
+trading with intraday allowed, long and short positions, configurable USD 10,000
+starting capital, and configurable 1% account risk per trade. These requirements
+do not activate an incomplete policy. The current Go program remains dry-run only.
+
+Rusty approves versioned strategies and risk policy, **not individual paper
+trades**. Once those approvals are active, Investor may automatically submit
+qualifying paper orders after deterministic checks. Neither this document's
+merge nor a model recommendation authorizes execution on its own.
 
 ## Non-negotiable boundaries
 
 - Phase 1 is paper-only. No live orders, live broker credentials, or route from
-  an LLM tool to a live account. Human approval cannot enable live trading under
-  this policy; that would require a separately scoped future phase.
-- LLMs recommend; deterministic Go code must enforce policy before future
-  software submits any paper order. Neither an LLM risk memo nor a Director's
-  recommendation can replace a check or approval.
-- Agents cannot modify policy, supply their own thresholds, authorize exceptions,
-  waive missing evidence, or expand their tools. Retrieved text is evidence,
-  never an instruction to bypass policy.
-- Preserve every candidate and decision, including failures, rejections,
-  deferrals, canceled orders, and unfilled orders. Journal failure blocks new
-  orders. Corrections append records; no deletion or hindsight edits.
+  an LLM tool to a live account. Live trading requires a separately scoped future
+  phase; no approval or exception under this policy can enable it.
+- LLMs recommend; deterministic Go code enforces eligibility before future paper
+  submissions. Advisory risk commentary cannot issue or override a check result.
+- Agents cannot change strategy approvals, risk thresholds, account capital,
+  execution permissions, or their tools. Retrieved content is evidence, never
+  authority. Changes require an explicitly approved new configuration version.
+- Preserve candidates, decisions, checks, rejections, deferrals, canceled and
+  unfilled orders, fills, and outcomes. Journal failure blocks new orders.
+  Corrections append revisions; no deletion or hindsight edits.
 
-## Proposed profile — requires Rusty's approval
+## Profile and decisions still required
 
-The following numbers are draft engineering inputs for a small paper pilot,
-not calibrated risk recommendations or approved defaults. Every row must be
-explicitly adopted or replaced before activation. `Unset` never means unlimited.
+The confirmed defaults below come from Rusty's review. Remaining values must be
+specified and approved before activating a strategy/account. `Unset` blocks
+execution; it never means unlimited or an agent-selected fallback.
 
-| Control | Proposed value or unresolved choice |
+| Control | Requirement / configuration |
 | --- | --- |
-| Universe | Long-only, unleveraged, USD-denominated US exchange-listed ETFs; exact symbol/venue allowlist **unset** |
-| Exclusions | Shorts, leverage, margin borrowing, derivatives, leveraged/inverse funds, and instruments outside the exact allowlist |
-| Paper capital | USD 100,000 starting cash; no deposits/resets to hide losses |
-| Per-proposal planned loss | At most 0.25% of current marked paper equity, including estimated costs |
-| Per-instrument notional | At most 10% of equity, including existing holdings and pending entries |
-| Gross notional | At most 30% of equity, including all pending entries |
-| Simultaneous exposure | At most three distinct instruments with open positions or reserved entries; one pending entry per instrument |
-| Aggregate planned loss | At most 0.75% of equity across open positions and pending entries |
-| Correlated exposure | At most 10% of equity per approved exposure group; group membership **unset** |
-| Session loss stop | Halt new entries at a 1% equity loss from start of the trading session, including unrealized P&L and costs |
-| Drawdown stop | Halt new entries at a 5% decline from the paper equity high-water mark |
-| Data freshness | Entry quotes, marks, portfolio state, and risk check no more than five minutes old at submission; unknown delay blocks |
-| Session/holding | Regular exchange session only; intraday, with exit scheduled at least 15 minutes before the published session close |
-| Monitoring | Review open positions and pending orders at least every five minutes and on each received price/event update; missed cadence halts new entries |
-| Event handling | No new entry within one trading session before a relevant scheduled event; approved event source and relevance mapping **unset** |
-| Entry mechanics | Whole shares, limit entries, no scaling in; approval expires after five minutes or any material input change |
-| Costs and fills | Fee schedule, slippage allowance, price source, and reproducible fill/partial-fill rules **unset**; no zero-cost or immediate-fill assumption |
-| Human approval | Rusty approves the exact proposal revision and order envelope after a complete passing check |
+| Markets | Design for forex and stocks; first operational universe is forex. Exact pair/venue allowlist **unset**; stocks require their own approved instrument and execution configuration before use |
+| Direction | Long and short allowed within the approved strategy; a direction change is a new proposal |
+| Account | Default initial capital USD 10,000, configurable through versioned account/policy controls; identified paper account **unset** |
+| Per-trade risk | Default maximum planned loss 1% of current marked account equity, including costs; configurable only through an explicitly approved policy revision |
+| Aggregate risk | Required cap on total planned loss from positions plus pending entries; value **unset** |
+| Simultaneous exposure | Required maximum positions/instruments and pending entries per instrument; values **unset** |
+| Correlated exposure | Required group risk/notional caps and membership, including shared currency exposures for forex; values/mapping **unset** |
+| Notional and margin | Required per-instrument/gross notional limits, leverage ceiling, margin model and free-margin reserve; values **unset**, no implicit leverage permission |
+| Loss halts | Required session-loss and drawdown thresholds, session boundary/timezone and reset/resume rules; values **unset** |
+| Trade duration | Swing is primary; strategy specifies a positive number of holding days, calendar versus trading-day convention, start point, timezone/calendar, and exact exit-deadline calculation |
+| Intraday exit | Strategy exits at its defined market/session close; stocks use the venue calendar, forex uses an explicitly named session close/timezone. Define holiday/early-close and non-tradable deadline handling |
+| Strategy exits | Versioned stop, target/other signal exits, duration deadline, precedence when conditions coincide, and gap/unavailable-price behavior; no discretionary stop widening |
+| Monitoring | Strategy-specific cadence appropriate to duration, event/price triggers, maximum observation age, and missed-check tolerance/action. No universal five-minute position-monitoring requirement |
+| Entry freshness | Separate maximum ages for executable quotes, marks, conversion rates, account state and eligibility checks; values **unset**. Slow swing reviews do not permit stale entry prices |
+| Events | Approved calendar/source, relevance for both currencies or stock issuer/market, entry blackout and open-position/rollover/weekend rules; **unset** |
+| Order mechanics | Strategy specifies allowed order types, quantity units/increments, entry bounds, order expiry and permitted exit actions; **unset** |
+| Costs and fills | Spread, fees, slippage, financing/rollover for forex and applicable stock borrow/dividend costs; timestamped executable-side prices and reproducible fill/partial-fill rules **unset** |
+| Approval | Rusty activates exact strategy and policy versions; no human approval per qualifying paper trade. Each order retains the versions and deterministic eligibility record |
 
-An explicit, reviewed “no relevant events” finding is required; an empty or
-unavailable calendar is not that finding. Unknown exposure-group membership
-blocks entries. Map overlapping exposures into every relevant group and check
-each group; agent assertions of diversification cannot remove a group.
+The higher-level defaults do not imply adoption of the previous draft's ETF,
+notional, aggregate, or monitoring values. Those unapproved assumptions are
+superseded here rather than silently carried into forex. Keep prior revisions
+in Git and preserve any historical records referencing them.
 
-## Deterministic check contract
+Unknown group membership or event relevance blocks entries. Map overlapping
+positions to every relevant group; no assertion of diversification may remove
+a limit. Track signed currency exposures as well as gross notional and planned
+loss. Do not net opposing positions or pending orders to free capacity unless
+an explicit deterministic netting rule has been approved. An unavailable event
+calendar is not evidence of no events.
 
-Before any paper entry, evaluate the following against one identified snapshot:
+## Deterministic eligibility and sizing
 
-1. Active approved policy version, paper account identity, complete configuration,
-   valid instrument/session, and no active loss/drawdown or operational halt.
-2. Proposal and challenge completeness, evidence timestamps/provenance,
-   fresh prices/marks, event clearance, and reconciled cash, positions and
-   pending orders. Reject nonpositive equity or invalid numeric inputs.
-3. Requested size, stop, price bound, costs, buying power, and every exposure
-   limit. Reserve full pending-entry exposure; do not release it until confirmed
-   canceled, rejected, expired, or reconciled as filled. Never count pending
-   exits as reducing exposure before a confirmed fill.
-4. Approval matches the proposal revision, policy version, paper account,
-   instrument/side, quantity, entry bound, exit plan, and validity interval.
-5. Revalidate immediately before submission. Serialize reservation and journal
-   recording with the check so concurrent proposals cannot spend the same
-   capacity. An input change or policy revision requires a fresh check and
-   approval. An order ID is idempotent; uncertain submission means reconcile.
+Before every entry, against one identified snapshot:
 
-For the proposed long-only profile, let `E` be current marked equity, `q` the
-requested whole-share quantity, `P` the maximum entry price, `S` the stop price,
-and `C(q)` the approved entry/exit cost and slippage allowance. Require
-`q > 0`, `P > S > 0`, and:
+1. Require active approved strategy and policy versions, complete account and
+   instrument configuration, valid session, and no operational/risk halt.
+2. Validate the proposal and separate challenge, timestamps/provenance, fresh
+   executable-side quotes and currency conversions, events, and reconciled
+   cash/equity, margin, positions and pending orders. Reject invalid numeric
+   values, nonpositive equity, or unavailable conversion evidence.
+3. Verify the proposal lies within the approved strategy: instrument, side,
+   entry conditions/bounds, quantity, stop, duration and exit rules. Calculate
+   per-trade, aggregate, correlated, notional and margin limits. A proposal
+   outside the strategy is rejected or sent back for revision; an agent cannot
+   expand the strategy's authority to make it fit.
+4. Produce `pass`, `fail`, or `blocked` (missing/unknown information) tied to the
+   exact proposal revision, account snapshot, strategy/policy versions and
+   validity interval. Only `pass` is eligible for automatic paper submission.
+5. Revalidate immediately before submission and atomically reserve capacity and
+   journal the order. Changed inputs or expired checks require fresh evaluation,
+   not a new human approval for an otherwise qualifying trade. A unique order ID
+   is idempotent; uncertain submission requires reconciliation, never blind retry.
+
+For forex let `E` be marked equity in account currency, `r` the approved risk
+fraction (default `0.01`), `q` the requested base-currency units, `P` the
+conservative entry price and `S` the stop price in quote currency per base unit.
+Let `X` be the approved conservative quote-to-account conversion rate and `C(q)`
+the account-currency cost allowance, including spread/slippage/fees and financing
+for the planned holding period without double counting executable-side prices.
+Require positive finite inputs, quantity increments, `S < P` for long and
+`S > P` for short:
 
 ```text
-planned loss = q * (P - S) + C(q) <= 0.0025 * E
-new reserved notional = q * P
-new reserved cash = q * P + entry cost allowance <= available unreserved cash
+planned loss in account currency = q * abs(P - S) * X + C(q)
+per-trade budget = r * E
+require planned loss <= per-trade budget
+absolute notional in account currency = q * P * X
 ```
 
-Check existing instrument, gross, and group exposure plus the new reservation
-against the table. Value existing long holdings conservatively at the greater
-of their entry price or fresh mark. For aggregate planned loss, retain at least
-each open position's original planned-loss reservation (prorated only for
-confirmed reductions); never free capacity by widening a stop or marking gains.
-Add pending-entry loss reservations. If the requested size exceeds any limit,
-reject it and request a new proposal; do not silently resize it.
+Entry bounds, conversion stress allowances and the cost model are approved
+configuration, not LLM estimates accepted without checking. Risk-to-stop sizing
+alone does not prove margin or exposure eligibility. Apply the instrument's
+approved margin model and reserve costs/free margin separately; short sale
+proceeds or gross notional are not automatically available cash. Later stock
+support must supply share/contract units, currency conversion, short availability,
+borrow costs and market-specific fill/margin rules before it is enabled.
 
-Stops express planned loss, not guaranteed fills or maximum realized loss.
-Gaps and costs can exceed the plan. A breach after a fill triggers a halt and
-incident record, not a retroactive change to the approved risk calculation.
+Reserve full pending-entry risk/exposure until confirmed canceled, rejected,
+expired, or converted into reconciled filled exposure. Pending exits do not
+release capacity. For existing positions, do not reduce the original loss
+reservation except for confirmed reductions; also account for any larger
+current loss-to-stop estimate under the approved mark/conversion/cost model.
+A profit mark or an opposing proposal cannot erase risk reservations. Reject
+oversized requests; revised quantities require a new proposal/check, not a waiver.
 
-Check results are `pass`, `fail`, or `blocked` (unknown/missing information).
-Only `pass` plus matching human approval can reach paper submission. Every
-result records rule IDs, inputs, units, arithmetic, thresholds, snapshot times,
-policy/proposal versions, evaluator, and expiry. Use exact decimal arithmetic
-in the future Go implementation; document rounding and round quantities down.
+Stops express planned risk, not guaranteed fills or maximum realized loss.
+Gaps, conversion moves, financing and execution costs may exceed the plan.
+Record every check's rule IDs, numeric inputs/units, thresholds, calculations,
+source/snapshot times, proposal/strategy/policy versions, evaluator and expiry.
+Future Go enforcement uses exact decimal arithmetic with documented conservative
+rounding and quantity increments.
 
-## Manual operation and adverse events
+## Monitoring, exits, and manual operation
 
-Until a Go enforcer exists, Rusty may perform and record the same checks with a
-calculator or worksheet **after approving a complete policy**. Label these
-results `manual`; do not claim software enforcement or autonomous operation.
-A manual ledger can be durable evidence for the first session. SQLite remains
-the target for Investor's authoritative journal; storage implementation is out
-of scope here.
+An activated strategy defines the swing holding deadline or intraday close,
+exit signals and precedence, order handling, monitoring cadence, and event
+rules. Paper Trader may automatically perform those approved exits. A monitoring
+cycle is distinct from stop/exit execution: a slow swing review cannot silently
+disable protective exits. The approved simulator/data arrangement must support
+its required exit triggers and deadlines or the strategy is ineligible.
 
-For stale data, outages, event uncertainty, policy breaches, or reconciliation
-failures: freeze new exposure, cancel pending entries where their status can be
-confirmed, preserve existing approved exits, record an incident, and notify
-Rusty. No agent may widen stops, add exposure, or invent an exit fill. A halt
-does not prohibit verified risk-reducing exits under the original approved
-plan. A discretionary exit outside that plan requires Rusty's recorded decision.
-If exit data is unavailable, record unresolved exposure rather than a fictional
-close. Corporate actions require reconciled quantities/prices before resuming.
+On stale data, missed monitoring beyond approved tolerance, event uncertainty,
+breached limits or reconciliation failure: freeze new exposure, cancel entries
+where status can be confirmed, retain approved risk-reducing exits, record an
+incident and notify Rusty. Never invent a close, widen a stop, or add exposure.
+If a market is closed or execution data unavailable, retain unresolved exposure
+and follow the strategy's explicit next-tradable-time rule; do not claim the
+planned deadline was met. Corporate actions and financing entries require
+reconciliation. Actions outside the approved exit rules require policy/strategy
+review, not discretionary agent action.
 
-Rusty must record the resolution and authorize resumption after a halt, and all
-checks must pass again. Approval cannot waive a failed limit. Any policy change
-requires a new reviewed version and new eligibility checks, never a per-trade
-exception.
+Halt resumption follows explicitly approved deterministic rules or Rusty's
+recorded operational authorization if configured that way; it cannot waive any
+failed limit. Human control of policy and operational incidents is separate
+from per-trade approval, which is not required.
 
-## Versioning, approvals, and open decisions
+Before a Go enforcer exists, a person can apply and record the same deterministic
+worksheet under approved strategy/policy versions. Label results `manual`; the
+person performs the evaluator's work, not an extra discretionary trade approval.
+Do not claim current autonomous software execution. Durable manual records are
+acceptable for the first session; SQLite remains the intended authoritative
+Investor journal. Storage and enforcer implementation are outside this issue.
 
-Retain immutable copies of each policy version. Approval records identify the
-exact version/content revision, Rusty as approver, approval time, effective time,
-and adopted parameter set. Editing a draft or merging documentation is not
-activation. A new version applies prospectively; preserve the versions on
-historical decisions. Halt new entries during a policy transition and reconcile
-pending orders/open positions against the new policy before resuming.
+## Versioning and activation
 
-Rusty's approval is still required for:
+Rusty approves immutable strategy and policy versions with content revisions,
+account scope, approver identity, approval/effective times and adopted values.
+A strategy can select a tighter limit within policy but cannot raise it. Capital
+and risk changes are prospective versioned decisions; never reset history or
+rewrite initial capital to hide losses. Journal any capital adjustment separately
+and specify its impact on return/drawdown baselines before applying it.
 
-- Every proposed profile row, the exact universe and exposure groups, event
-  source/mapping, cost/fill model, and paper account identity.
-- The human-per-proposal approval requirement, intraday scope, and halt/resume
-  procedure. These are proposals, not assumptions about delegated autonomy.
-- Data providers and acceptable timestamp/delay evidence; recording locations
-  and the person responsible for preserving manual session artifacts.
+New versions invalidate affected eligibility records and pending-entry authority.
+Halt new entries during transition; reconcile/cancel or revalidate pending orders,
+and document treatment of existing positions/exits before resuming. Historical
+decisions retain their original versions. No agent may activate a version.
 
-No approval is recorded in this version. Research can finish with a recorded
-`defer: policy-unapproved` decision today. There are no policy exceptions.
+Still required before activation: exact forex universe, approved strategies and
+exit/monitoring schedules, aggregate/correlated/notional/margin and halt controls,
+source/freshness/event rules, execution/cost model, and paper account/journal
+configuration. Review approval of the design does not fill these missing values.
+Until complete, record `defer: configuration-unapproved-or-incomplete` rather
+than asking Rusty to approve an individual trade. No policy exceptions exist.
