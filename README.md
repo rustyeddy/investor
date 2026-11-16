@@ -18,7 +18,8 @@ No live-money execution is authorized in these phases.
 Phase 1 design: [research roles and authority](roles/README.md),
 [draft paper-trading policy](docs/paper-trading-policy.md),
 [manual research session](docs/manual-research-session.md), and
-[operational workflow specification](docs/workflows.md). The policy is
+[operational workflow specification](docs/workflows.md), and the
+[research journal and evidence contract](docs/research-journal.md). The policy is
 unapproved; its proposed limits do not authorize paper orders. These documents
 guide manual research and future implementation, not the current dry-run engine.
 
