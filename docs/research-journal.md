@@ -177,11 +177,11 @@ Use SQLite as Investor's authoritative Phase 1 journal. Keep the first schema
 relational and small: a `records` table for common identity/revision/timestamps
 and immutable payload, plus indexed typed tables (or JSON payload columns with
 validated Go structs) for runs, evidence, decisions, reservations, orders,
-events, fills, positions, trades, incidents and reviews. Enforce unique record
-unique `revision_id`s, `(kind, id, revision)`, source event/fill IDs where
+events, fills, positions, trades, incidents and reviews. Enforce globally unique
+`revision_id`s, unique `(kind, id, revision)` tuples, source event/fill IDs where
 scoped, foreign keys to exact referenced `revision_id`s, valid transitions, and
-atomic reservation/order/fill updates. Use explicit
-schema migrations and a journal schema version; never mutate old payloads to
+atomic reservation/order/fill updates. Use explicit schema migrations and a
+journal schema version; never mutate old payloads to
 match a new Go struct. This is ordinary durable records plus append-only
 lifecycle events, not a general event-sourcing platform.
 
