@@ -19,11 +19,16 @@ fill model, or order.
 
 ## Identity and common evidence fields
 
-Every record has a globally unique, opaque `id` (UUID recommended), `kind`,
-`schema_version`, `created_at`, `recorded_at`, and `revision` (starting at 1).
-IDs are stable across export and retry. A revision points to its `supersedes_id`
-when it corrects or replaces an earlier record. Identity is never derived from
-mutable content. Parent/child links are explicit IDs and validated on write.
+`id` is the stable, globally unique logical object ID (UUID recommended),
+`revision` is its increasing revision number (starting at 1), and `revision_id`
+is a globally unique immutable ID for that exact revision. Every revision also
+has `kind`, `schema_version`, `created_at`, and `recorded_at`. Re-delivery of
+the same revision preserves both IDs; a correction keeps `id`, increments
+`revision`, and receives a new `revision_id`. It points to the prior
+`supersedes_revision_id`. IDs are never derived from mutable content. Relations
+that must reproduce a decision's original inputs reference `revision_id`, not
+just the logical `id`; a logical ID may be used when intentionally following
+the latest revision. Parent/child links are explicit and validated on write.
 
 All records that represent a run, decision, market fact, order, fill, position,
 or outcome also carry the applicable subset of:
@@ -173,8 +178,9 @@ relational and small: a `records` table for common identity/revision/timestamps
 and immutable payload, plus indexed typed tables (or JSON payload columns with
 validated Go structs) for runs, evidence, decisions, reservations, orders,
 events, fills, positions, trades, incidents and reviews. Enforce unique record
-IDs, `(kind, id, revision)`, source event/fill IDs where scoped, foreign keys,
-valid transitions, and atomic reservation/order/fill updates. Use explicit
+unique `revision_id`s, `(kind, id, revision)`, source event/fill IDs where
+scoped, foreign keys to exact referenced `revision_id`s, valid transitions, and
+atomic reservation/order/fill updates. Use explicit
 schema migrations and a journal schema version; never mutate old payloads to
 match a new Go struct. This is ordinary durable records plus append-only
 lifecycle events, not a general event-sourcing platform.
