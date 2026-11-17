@@ -1,4 +1,4 @@
-package service
+package transport
 
 import (
 	"encoding/json"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/rustyeddy/investor/internal/firm"
+	"github.com/rustyeddy/investor/internal/service"
 )
 
 func TestAPI(t *testing.T) {
@@ -15,7 +16,7 @@ func TestAPI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := Handler(c, e)
+	h := Handler(service.New(c, e))
 	for _, tc := range []struct {
 		method, path, body string
 		status             int

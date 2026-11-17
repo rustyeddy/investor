@@ -1,4 +1,5 @@
-package service
+// Package transport adapts the application service to external protocols.
+package transport
 
 import (
 	"context"
@@ -9,11 +10,13 @@ import (
 	"time"
 
 	"github.com/rustyeddy/investor/internal/firm"
+	"github.com/rustyeddy/investor/internal/service"
 )
 
 // Handler exposes the manager namespace reserved by Tulip. Runs are synchronous
 // and request-scoped; this initial service does not retain run history.
-func Handler(c firm.Config, engine *firm.Engine) http.Handler {
+func Handler(s *service.Service) http.Handler {
+	c := s.Config()
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		write(w, http.StatusOK, map[string]any{"ok": true, "mode": "dry-run"})
@@ -38,7 +41,8 @@ func Handler(c firm.Config, engine *firm.Engine) http.Handler {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
 		defer cancel()
-		run, err := engine.Run(ctx, request.Workflow, request.Objective)
+
+		run, err := s.Run(ctx, request.Workflow, request.Objective)
 		if errors.Is(err, firm.ErrUnknownWorkflow) {
 			write(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 			return

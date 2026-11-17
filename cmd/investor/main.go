@@ -18,6 +18,7 @@ import (
 
 	"github.com/rustyeddy/investor/internal/firm"
 	"github.com/rustyeddy/investor/internal/service"
+	"github.com/rustyeddy/investor/internal/transport"
 )
 
 func main() {
@@ -53,14 +54,18 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	root.SetErr(stderr)
 	root.PersistentFlags().StringVar(&configPath, "config", "examples/firm.json", "firm configuration")
 
-	// load builds the dry-run engine; every command validates configuration first.
-	load := func() (firm.Config, *firm.Engine, error) {
+	// load is the composition root: it builds the dry-run engine and the
+	// service every command uses. Every command validates configuration first.
+	load := func() (*service.Service, error) {
 		c, err := firm.Load(configPath)
 		if err != nil {
-			return c, nil, fmt.Errorf("configuration: %w", err)
+			return nil, fmt.Errorf("configuration: %w", err)
 		}
 		e, err := firm.New(c, firm.DryRun{}, nil, "dry-run")
-		return c, e, err
+		if err != nil {
+			return nil, err
+		}
+		return service.New(c, e), nil
 	}
 	encode := func(v any) error {
 		enc := json.NewEncoder(stdout)
@@ -73,7 +78,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 		Short: "Validate the firm configuration and its skills",
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
-			if _, _, err := load(); err != nil {
+			if _, err := load(); err != nil {
 				return err
 			}
 			return encode(map[string]bool{"valid": true})
@@ -85,11 +90,11 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 		Short: "Print the ordered agents of a workflow",
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
-			_, e, err := load()
+			app, err := load()
 			if err != nil {
 				return err
 			}
-			agents, err := e.Plan(workflow)
+			agents, err := app.Plan(workflow)
 			if err != nil {
 				return err
 			}
@@ -103,11 +108,11 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 		Short: "Run a workflow with the dry-run runtime",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			_, e, err := load()
+			app, err := load()
 			if err != nil {
 				return err
 			}
-			result, runErr := e.Run(cmd.Context(), workflow, objective)
+			result, runErr := app.Run(cmd.Context(), workflow, objective)
 			if result.ID != "" {
 				if err := encode(result); err != nil {
 					return err
@@ -124,11 +129,11 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 		Short: "Serve the HTTP API in the foreground",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			c, e, err := load()
+			app, err := load()
 			if err != nil {
 				return err
 			}
-			return serve(cmd.Context(), address, service.Handler(c, e))
+			return serve(cmd.Context(), address, transport.Handler(app))
 		},
 	}
 	serveCmd.Flags().StringVar(&address, "listen", "127.0.0.1:8090", "HTTP listen address")

@@ -4,6 +4,7 @@ These instructions apply to all work in this repository. Read [docs/development.
 
 ## Principles
 
+- Do not repeat yourself (DRY): when the same logic appears a second time, factor it into a shared helper. This takes precedence over keeping the package count low; put the helper in the nearest common package before creating a new one.
 - Prefer simple, idiomatic Go, few packages, and minimal dependencies.
 - Keep Investor independent from Trader and Tulip.
 - Make the smallest change that satisfies the assigned issue; propose unrelated work separately.
