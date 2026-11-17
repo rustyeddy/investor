@@ -70,6 +70,7 @@ func execute(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	app := service.New(c, e)
 	encode := func(v any) error {
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
@@ -79,13 +80,13 @@ func execute(ctx context.Context, args []string, out io.Writer) error {
 	case "validate":
 		return encode(map[string]bool{"valid": true})
 	case "plan":
-		plan, err := e.Plan(*workflow)
+		plan, err := app.Plan(*workflow)
 		if err != nil {
 			return err
 		}
 		return encode(plan)
 	case "run":
-		run, runErr := e.Run(ctx, *workflow, *objective)
+		run, runErr := app.Run(ctx, *workflow, *objective)
 		if run.ID != "" {
 			if err := encode(run); err != nil {
 				return err
@@ -93,7 +94,7 @@ func execute(ctx context.Context, args []string, out io.Writer) error {
 		}
 		return runErr
 	case "serve":
-		return serve(ctx, *address, service.Handler(c, e))
+		return serve(ctx, *address, service.HandlerService(app))
 	}
 	return nil
 }
