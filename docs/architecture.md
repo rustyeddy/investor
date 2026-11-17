@@ -4,7 +4,7 @@ The transport collects configuration and request parameters, invokes a
 transport-neutral service, and formats the result for a human or another agent.
 
 ```text
-CLI       REST       MCP (future)
+CLI   internal/transports (HTTP)   MCP (future)
   \        |        /
        internal/service
                |
@@ -14,6 +14,9 @@ CLI       REST       MCP (future)
                |
        structured result -> originating transport
 ```
+
+The HTTP transport lives in `internal/transports/http.go` and depends on the
+service; shared outbound provider HTTP remains in `agents/http.go`.
 
 The service is the entry point for application use cases; the firm engine
 retains ownership of workflow ordering, agent tool allowlists, and dry-run
