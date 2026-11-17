@@ -125,33 +125,14 @@ func (e *Engine) Run(ctx context.Context, workflow, objective string) (run Run, 
 		if err = ctx.Err(); err != nil {
 			return run, err
 		}
-		task := Task{Agent: agent, Objective: objective, Previous: slices.Clone(run.Results), Skills: []Skill{}}
-		for _, id := range agent.Skills {
-			for _, s := range e.config.Skills {
-				if s.ID == id {
-					task.Skills = append(task.Skills, s)
-				}
-			}
-		}
-		allowed := slices.Clone(agent.Tools)
-		call := func(ctx context.Context, id string, input json.RawMessage) (json.RawMessage, error) {
-			if err := ctx.Err(); err != nil {
-				return nil, err
-			}
-			if e.mode == "dry-run" {
-				return nil, errors.New("tools cannot execute in dry-run mode")
-			}
-			if !slices.Contains(allowed, id) {
-				return nil, fmt.Errorf("agent %q is not allowed to call %q", agent.ID, id)
-			}
-			fn, ok := e.tools[id]
-			if !ok {
-				return nil, fmt.Errorf("tool %q is not connected", id)
-			}
-			return fn(ctx, input)
+		task := Task{
+			Agent:     agent,
+			Skills:    e.skillsFor(agent),
+			Objective: objective,
+			Previous:  slices.Clone(run.Results),
 		}
 		var output string
-		output, err = e.runtime.Execute(ctx, task, call)
+		output, err = e.runtime.Execute(ctx, task, e.toolCaller(agent))
 		if err == nil {
 			err = ctx.Err()
 		}
@@ -159,9 +140,45 @@ func (e *Engine) Run(ctx context.Context, workflow, objective string) (run Run, 
 			err = fmt.Errorf("agent %s: %w", agent.ID, err)
 			return run, err
 		}
-		run.Results = append(run.Results, Result{agent.ID, output})
+		run.Results = append(run.Results, Result{AgentID: agent.ID, Output: output})
 	}
 	return run, nil
+}
+
+// skillsFor returns the configured skills the agent references, in the
+// agent's order.
+func (e *Engine) skillsFor(agent Agent) []Skill {
+	skills := []Skill{}
+	for _, id := range agent.Skills {
+		for _, s := range e.config.Skills {
+			if s.ID == id {
+				skills = append(skills, s)
+			}
+		}
+	}
+	return skills
+}
+
+// toolCaller returns the only path by which an agent's runtime may invoke
+// tools: it enforces the mode, the agent's declared tools, and connectivity.
+func (e *Engine) toolCaller(agent Agent) CallTool {
+	allowed := slices.Clone(agent.Tools)
+	return func(ctx context.Context, id string, input json.RawMessage) (json.RawMessage, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if e.mode == "dry-run" {
+			return nil, errors.New("tools cannot execute in dry-run mode")
+		}
+		if !slices.Contains(allowed, id) {
+			return nil, fmt.Errorf("agent %q is not allowed to call %q", agent.ID, id)
+		}
+		fn, ok := e.tools[id]
+		if !ok {
+			return nil, fmt.Errorf("tool %q is not connected", id)
+		}
+		return fn(ctx, input)
+	}
 }
 
 // DryRun exercises orchestration without model calls or trading operations.
