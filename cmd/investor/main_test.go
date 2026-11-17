@@ -23,7 +23,7 @@ func TestCommandsRejectMissingSkillBeforeExecution(t *testing.T) {
 	}
 	for _, command := range []string{"validate", "plan", "run", "serve"} {
 		var out bytes.Buffer
-		err := execute(context.Background(), []string{command, "-config", path}, &out)
+		err := execute(context.Background(), []string{command, "--config", path}, &out)
 		if err == nil || !strings.Contains(err.Error(), `skill "missing"`) || out.Len() != 0 {
 			t.Fatalf("%s: output=%q err=%v", command, out.String(), err)
 		}
@@ -38,7 +38,7 @@ func TestExampleCommandsAndCatalog(t *testing.T) {
 	t.Chdir(t.TempDir())
 	for _, command := range []string{"validate", "plan", "run"} {
 		var out bytes.Buffer
-		if err := execute(context.Background(), []string{command, "-config", path}, &out); err != nil {
+		if err := execute(context.Background(), []string{command, "--config", path}, &out); err != nil {
 			t.Fatalf("%s: %v", command, err)
 		}
 		if !json.Valid(out.Bytes()) {
@@ -73,5 +73,18 @@ func TestExampleCommandsAndCatalog(t *testing.T) {
 	}
 	if w.Code != 200 || len(skills) != 6 || skills[0].Description == "" || !strings.Contains(skills[0].Instructions, "Required observations") {
 		t.Fatalf("%d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestUsageAndInvalidInvocations(t *testing.T) {
+	var out bytes.Buffer
+	if err := execute(context.Background(), nil, &out); err != nil || !strings.Contains(out.String(), "validate") {
+		t.Fatalf("help: output=%q err=%v", out.String(), err)
+	}
+	for _, args := range [][]string{{"bogus"}, {"validate", "extra"}, {"plan", "--nope"}} {
+		out.Reset()
+		if err := execute(context.Background(), args, &out); err == nil {
+			t.Fatalf("%v: expected error", args)
+		}
 	}
 }
