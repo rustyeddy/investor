@@ -35,6 +35,19 @@ bin/investor run --workflow research --objective 'Evaluate a trend-following hyp
 bin/investor serve --listen 127.0.0.1:8090
 ```
 
+### Model runtime
+
+`run --runtime model` sends each role's authority, complete skill instructions and the objective to the LLM configured for that role, using a fixed **synthetic** market snapshot. The default `--runtime dry-run` makes no model calls. Choose LLMs in the config file: a default `llm`, optionally overridden per role under `roles` (keyed by the agent's `role` name):
+
+```json
+"llm": {"provider": "claude", "model": "claude-sonnet-5-5", "max_tokens": 4096, "timeout_seconds": 120},
+"roles": {
+  "Strategy Challenger": {"provider": "openai", "model": "<openai model>", "api_key_env": "OPENAI_API_KEY"}
+}
+```
+
+Providers are `claude` and `openai`. API keys are never stored in config: they are read from `api_key_env` (default `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). A missing key, a role with no LLM, malformed or invalid output, or a timeout fails the run with a clear error and no fabricated result. Each agent must return one JSON artifact (`artifact_id`, `status` of `ready|blocked|rejected`, `reason`, `findings`, `next_role`); model prose is never treated as a risk-policy pass. Tools are not offered to models and no order capability exists.
+
 Skills are loaded at startup from `skills_dir`, relative to the configuration file (the example uses `../skills`). Missing or malformed referenced skills fail validation before a run or service starts.
 
 Each command accepts `--config path/to/firm.json` (default: `examples/firm.json`, relative to the working directory). CLI results are JSON on stdout; logs are on stderr; failures exit nonzero. The foreground service shuts down on SIGINT/SIGTERM.

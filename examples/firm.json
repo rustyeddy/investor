@@ -1,5 +1,11 @@
 {
   "skills_dir": "../skills",
+  "llm": {
+    "provider": "claude",
+    "model": "claude-sonnet-5-5",
+    "max_tokens": 4096,
+    "timeout_seconds": 120
+  },
   "agents": [
     {
       "id": "analyst",

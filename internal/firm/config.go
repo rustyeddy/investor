@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 )
 
@@ -34,12 +35,43 @@ type Workflow struct {
 	Agents []string `json:"agents"`
 }
 
+// LLM selects the model provider and model a role runs on. Credentials are
+// never stored in configuration: APIKeyEnv names the environment variable that
+// holds the key (default OPENAI_API_KEY or ANTHROPIC_API_KEY).
+type LLM struct {
+	Provider       string `json:"provider"`
+	Model          string `json:"model"`
+	APIKeyEnv      string `json:"api_key_env,omitempty"`
+	MaxTokens      int    `json:"max_tokens,omitempty"`      // Claude only.
+	TimeoutSeconds int    `json:"timeout_seconds,omitempty"` // Per model call; default 60.
+}
+
+// Providers are the model providers Investor can run roles on.
+var Providers = []string{"claude", "openai"}
+
+func (l LLM) validate(where string) error {
+	if !slices.Contains(Providers, l.Provider) {
+		return fmt.Errorf("%s: unknown llm provider %q (want one of %v)", where, l.Provider, Providers)
+	}
+	if strings.TrimSpace(l.Model) == "" {
+		return fmt.Errorf("%s: llm model is required", where)
+	}
+	if l.MaxTokens < 0 || l.TimeoutSeconds < 0 {
+		return fmt.Errorf("%s: llm max_tokens and timeout_seconds must not be negative", where)
+	}
+	return nil
+}
+
 type Config struct {
-	SkillsDir string     `json:"skills_dir,omitempty"`
-	Agents    []Agent    `json:"agents"`
-	Skills    []Skill    `json:"skills"`
-	Tools     []Tool     `json:"tools"`
-	Workflows []Workflow `json:"workflows"`
+	SkillsDir string `json:"skills_dir,omitempty"`
+	// LLM is the default model for roles without an entry in Roles. Both are
+	// used only by the model runtime; the dry-run runtime ignores them.
+	LLM       *LLM           `json:"llm,omitempty"`
+	Roles     map[string]LLM `json:"roles,omitempty"` // Agent role name -> LLM.
+	Agents    []Agent        `json:"agents"`
+	Skills    []Skill        `json:"skills"`
+	Tools     []Tool         `json:"tools"`
+	Workflows []Workflow     `json:"workflows"`
 }
 
 func Decode(r io.Reader) (Config, error) {
@@ -107,6 +139,19 @@ func (c Config) Validate() error {
 			if !tools[id] {
 				return fmt.Errorf("agent %q references unknown tool %q", a.ID, id)
 			}
+		}
+	}
+	if c.LLM != nil {
+		if err := c.LLM.validate("llm"); err != nil {
+			return err
+		}
+	}
+	for role, l := range c.Roles {
+		if !slices.ContainsFunc(c.Agents, func(a Agent) bool { return a.Role == role }) {
+			return fmt.Errorf("roles: no agent has role %q", role)
+		}
+		if err := l.validate(fmt.Sprintf("roles[%q]", role)); err != nil {
+			return err
 		}
 	}
 	if len(c.Workflows) == 0 {
