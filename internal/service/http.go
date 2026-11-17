@@ -14,6 +14,12 @@ import (
 // Handler exposes the manager namespace reserved by Tulip. Runs are synchronous
 // and request-scoped; this initial service does not retain run history.
 func Handler(c firm.Config, engine *firm.Engine) http.Handler {
+	return HandlerService(New(c, engine))
+}
+
+// HandlerService exposes application services through HTTP.
+func HandlerService(s *Service) http.Handler {
+	c := s.Config()
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
 		write(w, http.StatusOK, map[string]any{"ok": true, "mode": "dry-run"})
@@ -38,7 +44,7 @@ func Handler(c firm.Config, engine *firm.Engine) http.Handler {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
 		defer cancel()
-		run, err := engine.Run(ctx, request.Workflow, request.Objective)
+		run, err := s.Run(ctx, request.Workflow, request.Objective)
 		if errors.Is(err, firm.ErrUnknownWorkflow) {
 			write(w, http.StatusNotFound, map[string]string{"error": err.Error()})
 			return
