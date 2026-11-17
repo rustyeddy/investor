@@ -39,15 +39,11 @@ func Load(path string) (Config, error) {
 			_ = root.Close()
 		}
 	}()
-	seen := map[string]bool{}
 	for i, s := range c.Skills {
+		// Validate the ID before it is used to build a filesystem path.
 		if !validSkillID(s.ID) {
 			return c, fmt.Errorf("invalid skill id %q", s.ID)
 		}
-		if seen[s.ID] {
-			return c, fmt.Errorf("duplicate skill %q", s.ID)
-		}
-		seen[s.ID] = true
 		if strings.TrimSpace(s.Instructions) != "" {
 			continue
 		}

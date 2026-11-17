@@ -28,9 +28,17 @@ func main() {
 	}
 }
 
+const usage = `Usage: investor <validate|plan|run|serve> [flags]
+  -config examples/firm.json
+  -workflow research
+  -objective 'Research objective'
+  -listen 127.0.0.1:8090 (serve only)
+Run and service currently use the dry-run runtime.
+`
+
 func execute(ctx context.Context, args []string, out io.Writer) error {
 	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
-		_, err := fmt.Fprintln(out, "Usage: investor <validate|plan|run|serve> [flags]\n  -config examples/firm.json\n  -workflow research\n  -objective 'Research objective'\n  -listen 127.0.0.1:8090 (serve only)\nRun and service currently use the dry-run runtime.")
+		_, err := fmt.Fprint(out, usage)
 		return err
 	}
 	command := args[0]
@@ -62,7 +70,11 @@ func execute(ctx context.Context, args []string, out io.Writer) error {
 	if err != nil {
 		return err
 	}
-	encode := func(v any) error { enc := json.NewEncoder(out); enc.SetIndent("", "  "); return enc.Encode(v) }
+	encode := func(v any) error {
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(v)
+	}
 	switch command {
 	case "validate":
 		return encode(map[string]bool{"valid": true})
@@ -91,7 +103,14 @@ func serve(ctx context.Context, address string, handler http.Handler) error {
 	if err != nil {
 		return err
 	}
-	server := &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 70 * time.Second, IdleTimeout: 60 * time.Second, BaseContext: func(net.Listener) context.Context { return ctx }}
+	server := &http.Server{
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      70 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		BaseContext:       func(net.Listener) context.Context { return ctx },
+	}
 	done := make(chan error, 1)
 	go func() { done <- server.Serve(listener) }()
 	slog.Info("investor listening", "address", listener.Addr(), "mode", "dry-run")
