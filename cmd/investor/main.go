@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log/slog"
@@ -15,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/rustyeddy/investor/internal/firm"
 	"github.com/rustyeddy/investor/internal/service"
 )
@@ -22,80 +23,118 @@ import (
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := execute(ctx, os.Args[1:], os.Stdout); err != nil {
+	if err := execute(ctx, os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		slog.Error("investor", "error", err)
 		os.Exit(1)
 	}
 }
 
-const usage = `Usage: investor <validate|plan|run|serve> [flags]
-  -config examples/firm.json
-  -workflow research
-  -objective 'Research objective'
-  -listen 127.0.0.1:8090 (serve only)
-Run and service currently use the dry-run runtime.
-`
+// execute runs the CLI with args. Results and help go to stdout; stderr is
+// reserved for diagnostics. Errors are returned, not printed, so main reports
+// them once.
+func execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	cmd := newRootCommand(stdout, stderr)
+	cmd.SetArgs(args)
+	return cmd.ExecuteContext(ctx)
+}
 
-func execute(ctx context.Context, args []string, out io.Writer) error {
-	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
-		_, err := fmt.Fprint(out, usage)
-		return err
+func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
+	var configPath, workflow, objective, address string
+
+	root := &cobra.Command{
+		Use:           "investor",
+		Short:         "AI-assisted trading research firm orchestrator",
+		Long:          "Run and service currently use the dry-run runtime.",
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
-	command := args[0]
-	switch command {
-	case "validate", "plan", "run", "serve":
-	default:
-		return fmt.Errorf("unknown command %q", command)
-	}
-	fs := flag.NewFlagSet(command, flag.ContinueOnError)
-	fs.SetOutput(out)
-	path := fs.String("config", "examples/firm.json", "firm configuration")
-	workflow := fs.String("workflow", "research", "workflow ID")
-	objective := fs.String("objective", "", "workflow objective")
-	address := fs.String("listen", "127.0.0.1:8090", "HTTP listen address")
-	if err := fs.Parse(args[1:]); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
+	root.CompletionOptions.DisableDefaultCmd = true
+	root.SetOut(stdout)
+	root.SetErr(stderr)
+	root.PersistentFlags().StringVar(&configPath, "config", "examples/firm.json", "firm configuration")
+
+	// load builds the dry-run engine; every command validates configuration first.
+	load := func() (firm.Config, *firm.Engine, error) {
+		c, err := firm.Load(configPath)
+		if err != nil {
+			return c, nil, fmt.Errorf("configuration: %w", err)
 		}
-		return err
-	}
-	if fs.NArg() != 0 {
-		return errors.New("unexpected positional arguments")
-	}
-	c, err := firm.Load(*path)
-	if err != nil {
-		return fmt.Errorf("configuration: %w", err)
-	}
-	e, err := firm.New(c, firm.DryRun{}, nil, "dry-run")
-	if err != nil {
-		return err
+		e, err := firm.New(c, firm.DryRun{}, nil, "dry-run")
+		return c, e, err
 	}
 	encode := func(v any) error {
-		enc := json.NewEncoder(out)
+		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(v)
 	}
-	switch command {
-	case "validate":
-		return encode(map[string]bool{"valid": true})
-	case "plan":
-		plan, err := e.Plan(*workflow)
-		if err != nil {
-			return err
-		}
-		return encode(plan)
-	case "run":
-		run, runErr := e.Run(ctx, *workflow, *objective)
-		if run.ID != "" {
-			if err := encode(run); err != nil {
+
+	validate := &cobra.Command{
+		Use:   "validate",
+		Short: "Validate the firm configuration and its skills",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			if _, _, err := load(); err != nil {
 				return err
 			}
-		}
-		return runErr
-	case "serve":
-		return serve(ctx, *address, service.Handler(c, e))
+			return encode(map[string]bool{"valid": true})
+		},
 	}
-	return nil
+
+	plan := &cobra.Command{
+		Use:   "plan",
+		Short: "Print the ordered agents of a workflow",
+		Args:  cobra.NoArgs,
+		RunE: func(*cobra.Command, []string) error {
+			_, e, err := load()
+			if err != nil {
+				return err
+			}
+			agents, err := e.Plan(workflow)
+			if err != nil {
+				return err
+			}
+			return encode(agents)
+		},
+	}
+	plan.Flags().StringVar(&workflow, "workflow", "research", "workflow ID")
+
+	run := &cobra.Command{
+		Use:   "run",
+		Short: "Run a workflow with the dry-run runtime",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			_, e, err := load()
+			if err != nil {
+				return err
+			}
+			result, runErr := e.Run(cmd.Context(), workflow, objective)
+			if result.ID != "" {
+				if err := encode(result); err != nil {
+					return err
+				}
+			}
+			return runErr
+		},
+	}
+	run.Flags().StringVar(&workflow, "workflow", "research", "workflow ID")
+	run.Flags().StringVar(&objective, "objective", "", "workflow objective")
+
+	serveCmd := &cobra.Command{
+		Use:   "serve",
+		Short: "Serve the HTTP API in the foreground",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			c, e, err := load()
+			if err != nil {
+				return err
+			}
+			return serve(cmd.Context(), address, service.Handler(c, e))
+		},
+	}
+	serveCmd.Flags().StringVar(&address, "listen", "127.0.0.1:8090", "HTTP listen address")
+
+	root.AddCommand(validate, plan, run, serveCmd)
+	return root
 }
 
 func serve(ctx context.Context, address string, handler http.Handler) error {
