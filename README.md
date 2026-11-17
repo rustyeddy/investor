@@ -30,14 +30,14 @@ Requires Go 1.25.1 or newer. YAML skill frontmatter uses `gopkg.in/yaml.v3`.
 ```sh
 go build -o bin/investor ./cmd/investor
 bin/investor validate
-bin/investor plan -workflow research
-bin/investor run -workflow research -objective 'Evaluate a trend-following hypothesis'
-bin/investor serve -listen 127.0.0.1:8090
+bin/investor plan --workflow research
+bin/investor run --workflow research --objective 'Evaluate a trend-following hypothesis'
+bin/investor serve --listen 127.0.0.1:8090
 ```
 
 Skills are loaded at startup from `skills_dir`, relative to the configuration file (the example uses `../skills`). Missing or malformed referenced skills fail validation before a run or service starts.
 
-Each command accepts `-config path/to/firm.json` (default: `examples/firm.json`, relative to the working directory). CLI results are JSON on stdout; logs are on stderr; failures exit nonzero. The foreground service shuts down on SIGINT/SIGTERM.
+Each command accepts `--config path/to/firm.json` (default: `examples/firm.json`, relative to the working directory). CLI results are JSON on stdout; logs are on stderr; failures exit nonzero. The foreground service shuts down on SIGINT/SIGTERM.
 
 ```sh
 curl http://127.0.0.1:8090/api/manager/agents
