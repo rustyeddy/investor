@@ -2,19 +2,17 @@
 package openai
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"net/http"
-	"strings"
 
 	"github.com/rustyeddy/investor/agents"
 )
 
-const defaultURL = "https://api.openai.com/v1/responses"
+const (
+	provider   = "openai"
+	defaultURL = "https://api.openai.com/v1/responses"
+)
 
 type Agent struct {
 	Key    string
@@ -36,37 +34,13 @@ func (a *Agent) Run(ctx context.Context, input agents.Request) (agents.Response,
 	if endpoint == "" {
 		endpoint = defaultURL
 	}
-	payload, err := json.Marshal(struct {
+	payload := struct {
 		Model        string `json:"model"`
 		Instructions string `json:"instructions"`
 		Input        string `json:"input"`
-	}{a.Model, input.Instructions, input.Prompt})
-	if err != nil {
-		return agents.Response{}, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(payload))
-	if err != nil {
-		return agents.Response{}, err
-	}
-	req.Header.Set("Authorization", "Bearer "+a.Key)
-	req.Header.Set("Content-Type", "application/json")
-	client := a.Client
-	if client == nil {
-		client = http.DefaultClient
-	}
-	res, err := client.Do(req)
-	if err != nil {
-		return agents.Response{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
-		return agents.Response{}, fmt.Errorf("openai: HTTP %d: %s", res.StatusCode, strings.TrimSpace(string(body)))
-	}
+	}{a.Model, input.Instructions, input.Prompt}
 	var decoded struct {
-		Error *struct {
-			Message string `json:"message"`
-		} `json:"error"`
+		agents.Envelope
 		Output []struct {
 			Content []struct {
 				Type string `json:"type"`
@@ -74,11 +48,12 @@ func (a *Agent) Run(ctx context.Context, input agents.Request) (agents.Response,
 			} `json:"content"`
 		} `json:"output"`
 	}
-	if err := json.NewDecoder(io.LimitReader(res.Body, 8<<20)).Decode(&decoded); err != nil {
-		return agents.Response{}, fmt.Errorf("openai: decode: %w", err)
+	headers := map[string]string{"Authorization": "Bearer " + a.Key}
+	if err := agents.PostJSON(ctx, a.Client, provider, endpoint, headers, payload, &decoded); err != nil {
+		return agents.Response{}, err
 	}
-	if decoded.Error != nil {
-		return agents.Response{}, fmt.Errorf("openai: %s", decoded.Error.Message)
+	if err := decoded.Err(provider); err != nil {
+		return agents.Response{}, err
 	}
 	var parts []string
 	for _, item := range decoded.Output {
@@ -88,8 +63,5 @@ func (a *Agent) Run(ctx context.Context, input agents.Request) (agents.Response,
 			}
 		}
 	}
-	if len(parts) == 0 {
-		return agents.Response{}, errors.New("openai: response has no output_text")
-	}
-	return agents.Response{Text: strings.Join(parts, "\n")}, nil
+	return agents.TextResponse(provider, "output_text", parts)
 }
