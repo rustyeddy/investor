@@ -21,8 +21,10 @@ func TestRun(t *testing.T) {
 	defer server.Close()
 	a := New("test", "test-model")
 	a.Endpoint, a.Client = server.URL, server.Client()
-	got, err := a.Run(context.Background(), agents.Request{Instructions:"analyst",Prompt:"evaluate"})
-	if err != nil || got.Text != "research result" { t.Fatalf("Run = %+v, %v", got, err) }
+	got, err := a.Run(context.Background(), agents.Request{Instructions: "analyst", Prompt: "evaluate"})
+	if err != nil || got.Text != "research result" {
+		t.Fatalf("Run = %+v, %v", got, err)
+	}
 }
 
 func TestError(t *testing.T) {
@@ -32,6 +34,8 @@ func TestError(t *testing.T) {
 	defer server.Close()
 	a := New("test", "model")
 	a.Endpoint = server.URL
-	_, err := a.Run(context.Background(), agents.Request{Prompt:"test"})
-	if err == nil || !strings.Contains(err.Error(), "503") { t.Fatalf("expected 503 error, got %v", err) }
+	_, err := a.Run(context.Background(), agents.Request{Prompt: "test"})
+	if err == nil || !strings.Contains(err.Error(), "503") {
+		t.Fatalf("expected 503 error, got %v", err)
+	}
 }

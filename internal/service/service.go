@@ -14,15 +14,15 @@ type Service struct {
 }
 
 func New(c firm.Config, engine *firm.Engine) *Service {
-	return &Service{config:c,engine:engine}
+	return &Service{config: c, engine: engine}
 }
 
-func (s *Service) Plan(workflow string) ([]firm.Agent,error) {
+func (s *Service) Plan(workflow string) ([]firm.Agent, error) {
 	return s.engine.Plan(workflow)
 }
 
-func (s *Service) Run(ctx context.Context, workflow, objective string) (firm.Run,error) {
-	return s.engine.Run(ctx,workflow,objective)
+func (s *Service) Run(ctx context.Context, workflow, objective string) (firm.Run, error) {
+	return s.engine.Run(ctx, workflow, objective)
 }
 
 func (s *Service) Config() firm.Config { return s.config }
