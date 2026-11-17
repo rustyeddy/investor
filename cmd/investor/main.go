@@ -23,21 +23,22 @@ import (
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := execute(ctx, os.Args[1:], os.Stdout); err != nil {
+	if err := execute(ctx, os.Args[1:], os.Stdout, os.Stderr); err != nil {
 		slog.Error("investor", "error", err)
 		os.Exit(1)
 	}
 }
 
-// execute runs the CLI with args, writing results and help to out. Errors are
-// returned, not printed, so main reports them once on stderr.
-func execute(ctx context.Context, args []string, out io.Writer) error {
-	cmd := newRootCommand(out)
+// execute runs the CLI with args. Results and help go to stdout; stderr is
+// reserved for diagnostics. Errors are returned, not printed, so main reports
+// them once.
+func execute(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	cmd := newRootCommand(stdout, stderr)
 	cmd.SetArgs(args)
 	return cmd.ExecuteContext(ctx)
 }
 
-func newRootCommand(out io.Writer) *cobra.Command {
+func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	var configPath, workflow, objective, address string
 
 	root := &cobra.Command{
@@ -48,8 +49,8 @@ func newRootCommand(out io.Writer) *cobra.Command {
 		SilenceErrors: true,
 	}
 	root.CompletionOptions.DisableDefaultCmd = true
-	root.SetOut(out)
-	root.SetErr(out)
+	root.SetOut(stdout)
+	root.SetErr(stderr)
 	root.PersistentFlags().StringVar(&configPath, "config", "examples/firm.json", "firm configuration")
 
 	// load builds the dry-run engine; every command validates configuration first.
@@ -62,7 +63,7 @@ func newRootCommand(out io.Writer) *cobra.Command {
 		return c, e, err
 	}
 	encode := func(v any) error {
-		enc := json.NewEncoder(out)
+		enc := json.NewEncoder(stdout)
 		enc.SetIndent("", "  ")
 		return enc.Encode(v)
 	}
