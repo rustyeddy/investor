@@ -4,6 +4,7 @@ package claude
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/rustyeddy/investor/agents"
@@ -46,7 +47,8 @@ func (a *Agent) Run(ctx context.Context, input agents.Request) (agents.Response,
 	}{a.Model, input.Instructions, maxTokens, []map[string]string{{"role": "user", "content": input.Prompt}}}
 	var decoded struct {
 		agents.Envelope
-		Content []struct {
+		StopReason string `json:"stop_reason"`
+		Content    []struct {
 			Type string `json:"type"`
 			Text string `json:"text"`
 		} `json:"content"`
@@ -57,6 +59,15 @@ func (a *Agent) Run(ctx context.Context, input agents.Request) (agents.Response,
 	}
 	if err := decoded.Err(provider); err != nil {
 		return agents.Response{}, err
+	}
+	// Fail closed: only a natural stop is a complete answer. "max_tokens" is
+	// truncated; "refusal", "pause_turn" and "tool_use" are not final text.
+	switch decoded.StopReason {
+	case "end_turn", "stop_sequence":
+	case "":
+		return agents.Response{}, errors.New("claude: response missing stop_reason")
+	default:
+		return agents.Response{}, fmt.Errorf("claude: incomplete response: stop_reason %q", decoded.StopReason)
 	}
 	var parts []string
 	for _, c := range decoded.Content {

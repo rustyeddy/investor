@@ -29,6 +29,9 @@ permissions. Transports must not bypass the service for workflow operations.
 `agents/openai` uses the Responses API; `agents/claude` uses the Messages API.
 These adapters are opt-in and are **not** wired into the dry-run engine yet.
 They currently support text-only requests, not tool calls or sessions.
+Adapters fail closed: truncated or incomplete provider output (Claude
+`stop_reason` other than `end_turn`/`stop_sequence`, OpenAI `status` other than
+`completed`) is an error, never a successful `agents.Response`.
 Choose a provider and model explicitly when constructing an adapter;
 supply credentials via `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` in the caller.
 
