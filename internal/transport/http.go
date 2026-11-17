@@ -41,6 +41,7 @@ func Handler(s *service.Service) http.Handler {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), time.Minute)
 		defer cancel()
+
 		run, err := s.Run(ctx, request.Workflow, request.Objective)
 		if errors.Is(err, firm.ErrUnknownWorkflow) {
 			write(w, http.StatusNotFound, map[string]string{"error": err.Error()})
