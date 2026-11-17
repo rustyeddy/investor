@@ -12,6 +12,7 @@ import (
 
 	"github.com/rustyeddy/investor/internal/firm"
 	"github.com/rustyeddy/investor/internal/service"
+	"github.com/rustyeddy/investor/internal/transport"
 )
 
 func TestCommandsRejectMissingSkillBeforeExecution(t *testing.T) {
@@ -66,7 +67,7 @@ func TestExampleCommandsAndCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	w := httptest.NewRecorder()
-	service.Handler(c, e).ServeHTTP(w, httptest.NewRequest("GET", "/api/manager/skills", nil))
+	transport.Handler(service.New(c, e)).ServeHTTP(w, httptest.NewRequest("GET", "/api/manager/skills", nil))
 	var skills []firm.Skill
 	if err := json.Unmarshal(w.Body.Bytes(), &skills); err != nil {
 		t.Fatal(err)

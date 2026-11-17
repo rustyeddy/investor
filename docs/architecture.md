@@ -4,7 +4,7 @@ The transport collects configuration and request parameters, invokes a
 transport-neutral service, and formats the result for a human or another agent.
 
 ```text
-CLI   internal/transports (HTTP)   MCP (future)
+CLI   internal/transport (HTTP)   MCP (future)
   \        |        /
        internal/service
                |
@@ -15,8 +15,11 @@ CLI   internal/transports (HTTP)   MCP (future)
        structured result -> originating transport
 ```
 
-The HTTP transport lives in `internal/transports/http.go` and depends on the
+The HTTP transport lives in `internal/transport/http.go` and depends on the
 service; shared outbound provider HTTP remains in `agents/http.go`.
+`cmd/investor` is the composition root: it loads configuration, builds the
+firm engine and service, and hands the service to the CLI or HTTP transport.
+`internal/service` knows nothing about transports.
 
 The service is the entry point for application use cases; the firm engine
 retains ownership of workflow ordering, agent tool allowlists, and dry-run

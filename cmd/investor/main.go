@@ -17,7 +17,7 @@ import (
 
 	"github.com/rustyeddy/investor/internal/firm"
 	"github.com/rustyeddy/investor/internal/service"
-	"github.com/rustyeddy/investor/internal/transports"
+	"github.com/rustyeddy/investor/internal/transport"
 )
 
 func main() {
@@ -95,7 +95,7 @@ func execute(ctx context.Context, args []string, out io.Writer) error {
 		}
 		return runErr
 	case "serve":
-		return serve(ctx, *address, transports.HandlerService(app))
+		return serve(ctx, *address, transport.Handler(app))
 	}
 	return nil
 }
