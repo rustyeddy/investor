@@ -4,6 +4,7 @@ package openai
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/rustyeddy/investor/agents"
@@ -41,6 +42,10 @@ func (a *Agent) Run(ctx context.Context, input agents.Request) (agents.Response,
 	}{a.Model, input.Instructions, input.Prompt}
 	var decoded struct {
 		agents.Envelope
+		Status            string `json:"status"`
+		IncompleteDetails *struct {
+			Reason string `json:"reason"`
+		} `json:"incomplete_details"`
 		Output []struct {
 			Content []struct {
 				Type string `json:"type"`
@@ -54,6 +59,17 @@ func (a *Agent) Run(ctx context.Context, input agents.Request) (agents.Response,
 	}
 	if err := decoded.Err(provider); err != nil {
 		return agents.Response{}, err
+	}
+	// Fail closed: only a completed response is a finished answer.
+	if decoded.Status != "completed" {
+		reason := decoded.Status
+		if decoded.IncompleteDetails != nil && decoded.IncompleteDetails.Reason != "" {
+			reason += ": " + decoded.IncompleteDetails.Reason
+		}
+		if reason == "" {
+			return agents.Response{}, errors.New("openai: response missing status")
+		}
+		return agents.Response{}, fmt.Errorf("openai: incomplete response: status %s", reason)
 	}
 	var parts []string
 	for _, item := range decoded.Output {
