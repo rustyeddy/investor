@@ -49,3 +49,23 @@ func TestSafeguardConfigValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestTraderConfigValidation(t *testing.T) {
+	base := `"agents":[{"id":"a","role":"R"}],"workflows":[{"id":"w","agents":["a"]}]`
+	for name, tc := range map[string]struct{ extra, want string }{
+		"valid":      {`"trader":{"base_url":"http://127.0.0.1:8080","token_env":"T","watchlist":["EURUSD"]},`, ""},
+		"no scheme":  {`"trader":{"base_url":"127.0.0.1:8080"},`, "must be an http(s) URL"},
+		"empty":      {`"trader":{},`, "must be an http(s) URL"},
+		"blank pair": {`"trader":{"base_url":"http://h","watchlist":[" "]},`, "invalid watchlist"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := Decode(strings.NewReader("{" + tc.extra + base + "}"))
+			switch {
+			case tc.want == "" && err != nil:
+				t.Fatal(err)
+			case tc.want != "" && (err == nil || !strings.Contains(err.Error(), tc.want)):
+				t.Fatalf("err = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}

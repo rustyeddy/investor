@@ -18,6 +18,7 @@ import (
 
 	"github.com/rustyeddy/investor/internal/firm"
 	"github.com/rustyeddy/investor/internal/journal"
+	"github.com/rustyeddy/investor/internal/market"
 	"github.com/rustyeddy/investor/internal/model"
 	"github.com/rustyeddy/investor/internal/service"
 	"github.com/rustyeddy/investor/internal/transport"
@@ -178,8 +179,96 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	}
 	serveCmd.Flags().StringVar(&address, "listen", "127.0.0.1:8090", "HTTP listen address")
 
-	root.AddCommand(validate, plan, run, serveCmd)
+	// source builds Trader's market-data client from the configuration.
+	source := func(traderURL string) (market.Source, *firm.Config, error) {
+		c, err := firm.Load(configPath)
+		if err != nil {
+			return nil, nil, fmt.Errorf("configuration: %w", err)
+		}
+		t := firm.Trader{BaseURL: traderURL, TokenEnv: "TRADER_API_TOKEN"}
+		if c.Trader != nil {
+			t = *c.Trader
+			if t.TokenEnv == "" {
+				t.TokenEnv = "TRADER_API_TOKEN"
+			}
+			if traderURL != "" {
+				t.BaseURL = traderURL
+			}
+		}
+		if t.BaseURL == "" {
+			return nil, nil, errors.New("no Trader API: set trader.base_url in the config file or pass --trader")
+		}
+		return &market.Client{BaseURL: t.BaseURL, Token: os.Getenv(t.TokenEnv)}, &c, nil
+	}
+
+	var (
+		traderURL, instrument, interval, from, to, asOf string
+		strict                                          bool
+	)
+	bars := &cobra.Command{
+		Use:   "bars",
+		Short: "Read bars from Trader's market-data API",
+		Long:  "Read completed bars from Trader, with coverage and a fingerprint of the data. Times are RFC 3339 or YYYY-MM-DD (UTC); --to is exclusive.",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			src, _, err := source(traderURL)
+			if err != nil {
+				return err
+			}
+			r := market.Request{Instrument: instrument, Interval: interval, Strict: strict}
+			for _, p := range []struct {
+				flag, val string
+				dst       *time.Time
+			}{{"from", from, &r.From}, {"to", to, &r.To}, {"as-of", asOf, &r.AsOf}} {
+				if p.val == "" {
+					continue
+				}
+				if *p.dst, err = parseTime(p.val); err != nil {
+					return fmt.Errorf("--%s: %w", p.flag, err)
+				}
+			}
+			got, err := src.Bars(cmd.Context(), r)
+			if err != nil {
+				return err
+			}
+			return encode(got)
+		},
+	}
+	bars.Flags().StringVar(&traderURL, "trader", "", "Trader API base URL, overriding trader.base_url")
+	bars.Flags().StringVar(&instrument, "instrument", "", "instrument, e.g. EURUSD")
+	bars.Flags().StringVar(&interval, "interval", "d1", "h1 or d1")
+	bars.Flags().StringVar(&from, "from", "", "start (inclusive)")
+	bars.Flags().StringVar(&to, "to", "", "end (exclusive)")
+	bars.Flags().StringVar(&asOf, "as-of", "", "only bars available at this time (no look-ahead)")
+	bars.Flags().BoolVar(&strict, "strict", false, "fail if the range is not complete")
+
+	snapshot := &cobra.Command{
+		Use:   "snapshot",
+		Short: "Print the latest completed D1 and H1 bar of the configured watchlist",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			src, c, err := source(traderURL)
+			if err != nil {
+				return err
+			}
+			if c.Trader == nil || len(c.Trader.Watchlist) == 0 {
+				return errors.New("no watchlist: set trader.watchlist in the config file")
+			}
+			return encode(market.TakeSnapshot(cmd.Context(), src, c.Trader.Watchlist, time.Now()))
+		},
+	}
+	snapshot.Flags().StringVar(&traderURL, "trader", "", "Trader API base URL, overriding trader.base_url")
+
+	root.AddCommand(validate, plan, run, serveCmd, bars, snapshot)
 	return root
+}
+
+// parseTime accepts an RFC 3339 time or a YYYY-MM-DD UTC date.
+func parseTime(s string) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	return time.Parse(time.DateOnly, s)
 }
 
 func serve(ctx context.Context, address string, handler http.Handler) error {
