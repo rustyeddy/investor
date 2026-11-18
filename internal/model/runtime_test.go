@@ -15,6 +15,7 @@ import (
 	"github.com/rustyeddy/investor/agents/claude"
 	"github.com/rustyeddy/investor/agents/openai"
 	"github.com/rustyeddy/investor/internal/firm"
+	"github.com/rustyeddy/investor/internal/journal"
 )
 
 type fakeAgent struct {
@@ -310,7 +311,7 @@ func TestLimitsStopFurtherCalls(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			a := reply(goodJSON)
 			e := ent(a)
-			e.price = tc.price
+			e.llm = tc.price
 			r := newRT(map[string]entry{"R": e})
 			r.limits = tc.limits
 			var err error
@@ -450,5 +451,54 @@ func TestDefaultConfigBoundsOutputOnTheWire(t *testing.T) {
 	r, err := New(cfg(&firm.LLM{Provider: "openai", Model: "m", MaxTokens: 123}, nil), env(map[string]string{"OPENAI_API_KEY": "k"}))
 	if err != nil || r.roles["Market Analyst"].agent.(*openai.Agent).MaxTokens != 123 {
 		t.Fatalf("explicit max_tokens: %v", err)
+	}
+}
+
+func TestModelCallsAreJournaledIncludingFailures(t *testing.T) {
+	j, err := journal.Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := ent(flaky(1, &agents.StatusError{Provider: "claude", Status: 503, Body: "busy"}))
+	e.retries = 2
+	e.llm = firm.LLM{Provider: "claude", Model: "m1", InputUSDPerMTok: 1000, OutputUSDPerMTok: 1000}
+	r := newRT(map[string]entry{"R": e})
+	r.Journal = j
+	if _, err := r.Execute(context.Background(), task("R"), nil); err != nil {
+		t.Fatal(err)
+	}
+	read := func(n int) map[string]any {
+		rec, err := j.Latest("model_call", fmt.Sprintf("run1/analyst/call-%d", n))
+		if err != nil {
+			t.Fatalf("call %d not journaled: %v", n, err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(rec.Payload, &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+	failed, ok := read(1), read(2)
+	if failed["status"] != "error" || !strings.Contains(failed["error"].(string), "503") || failed["provider"] != "claude" || failed["model"] != "m1" || failed["attempt"] != float64(1) {
+		t.Fatalf("failed attempt = %v", failed)
+	}
+	if ok["status"] != "ok" || ok["attempt"] != float64(2) || ok["input_tokens"] != float64(100) || ok["output_tokens"] != float64(50) || ok["cost_usd"].(float64) <= 0 {
+		t.Fatalf("successful attempt = %v", ok)
+	}
+	if ids, _ := j.List("model_call"); len(ids) != 2 {
+		t.Fatalf("ids = %v", ids)
+	}
+}
+
+type brokenJournal struct{ journal.Journal }
+
+func (brokenJournal) Append(journal.Record) error { return errors.New("disk full") }
+
+func TestJournalWriteFailureFailsTheCall(t *testing.T) {
+	a := reply(goodJSON)
+	r := newRT(map[string]entry{"R": ent(a)})
+	r.Journal = brokenJournal{}
+	if _, err := r.Execute(context.Background(), task("R"), nil); err == nil || !strings.Contains(err.Error(), "disk full") {
+		t.Fatalf("err = %v", err)
 	}
 }

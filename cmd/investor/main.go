@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/rustyeddy/investor/internal/firm"
+	"github.com/rustyeddy/investor/internal/journal"
 	"github.com/rustyeddy/investor/internal/model"
 	"github.com/rustyeddy/investor/internal/service"
 	"github.com/rustyeddy/investor/internal/transport"
@@ -41,7 +42,7 @@ func execute(ctx context.Context, args []string, stdout, stderr io.Writer) error
 }
 
 func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
-	var configPath, workflow, objective, address, runtimeName string
+	var configPath, workflow, objective, address, runtimeName, journalDir string
 
 	root := &cobra.Command{
 		Use:           "investor",
@@ -65,17 +66,27 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 		var (
 			rt   firm.Runtime = firm.DryRun{}
 			mode              = "dry-run"
+			j    journal.Journal
 		)
+		if journalDir != "" {
+			if j, err = journal.Open(journalDir); err != nil {
+				return nil, err
+			}
+		}
 		if runtime == "model" {
 			m, err := model.New(c, os.Getenv)
 			if err != nil {
 				return nil, fmt.Errorf("model runtime: %w", err)
 			}
+			m.Journal = j
 			rt, mode = m, "research"
 		}
 		e, err := firm.New(c, rt, nil, mode)
 		if err != nil {
 			return nil, err
+		}
+		if j != nil {
+			e.WithObserver(journal.NewObserver(j))
 		}
 		return service.New(c, e), nil
 	}
@@ -138,6 +149,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	}
 	run.Flags().StringVar(&workflow, "workflow", "research", "workflow ID")
 	run.Flags().StringVar(&objective, "objective", "", "workflow objective")
+	run.Flags().StringVar(&journalDir, "journal", "", "directory of the append-only research journal; records runs, steps and model calls (disabled if empty)")
 	run.Flags().StringVar(&runtimeName, "runtime", "dry-run", `runtime: "dry-run" or "model" (calls the LLMs configured in the config file)`)
 
 	serveCmd := &cobra.Command{
