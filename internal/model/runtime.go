@@ -18,6 +18,7 @@ import (
 	"github.com/rustyeddy/investor/agents/claude"
 	"github.com/rustyeddy/investor/agents/openai"
 	"github.com/rustyeddy/investor/internal/firm"
+	"github.com/rustyeddy/investor/internal/journal"
 )
 
 const (
@@ -76,7 +77,7 @@ type entry struct {
 	agent   agents.Agent
 	timeout time.Duration // Per attempt.
 	retries int
-	price   firm.LLM // Only the price fields are used.
+	llm     firm.LLM // Provider, model and prices.
 }
 
 // ledger is one run's model usage.
@@ -91,6 +92,9 @@ type ledger struct {
 type Runtime struct {
 	roles  map[string]entry // Keyed by agent role name.
 	limits firm.Limits
+	// Journal, if set, receives a record of every model call attempt, including
+	// failures. A failed journal write fails the call.
+	Journal journal.Journal
 	// backoff is the first retry delay; it doubles per retry up to maxBackoff.
 	backoff time.Duration
 
@@ -141,7 +145,7 @@ func New(c firm.Config, getenv func(string) string) (*Runtime, error) {
 		if c.Limits.MaxCostUSDPerRun > 0 && (l.InputUSDPerMTok <= 0 || l.OutputUSDPerMTok <= 0) {
 			return nil, fmt.Errorf("role %q: limits.max_cost_usd_per_run is set, so its llm needs positive input_usd_per_mtok and output_usd_per_mtok", a.Role)
 		}
-		r.roles[a.Role] = entry{agent: agent, timeout: timeout, retries: retries, price: l}
+		r.roles[a.Role] = entry{agent: agent, timeout: timeout, retries: retries, llm: l}
 	}
 	return r, nil
 }
@@ -207,14 +211,20 @@ func (r *Runtime) Execute(ctx context.Context, task firm.Task, _ firm.CallTool) 
 // limits.
 func (r *Runtime) call(ctx context.Context, task firm.Task, e entry, req agents.Request) (agents.Response, error) {
 	for attempt := 0; ; attempt++ {
-		if err := r.reserve(task.RunID); err != nil {
+		n, err := r.reserve(task.RunID)
+		if err != nil {
 			return agents.Response{}, fmt.Errorf("agent %s: %w", task.Agent.ID, err)
 		}
+		started := time.Now().UTC()
 		res, err := r.attempt(ctx, e, req)
+		var cost float64
 		if err == nil {
-			if err := r.record(task, e, res.Usage, attempt); err != nil {
-				return agents.Response{}, err
-			}
+			cost, err = r.record(task, e, res.Usage, attempt)
+		}
+		if jerr := r.journalCall(task, e, n, attempt, started, res.Usage, cost, err); jerr != nil {
+			return agents.Response{}, errors.Join(err, jerr)
+		}
+		if err == nil {
 			return res, nil
 		}
 		if attempt >= e.retries || ctx.Err() != nil || !agents.Retryable(err) {
@@ -250,29 +260,29 @@ func sleep(ctx context.Context, d time.Duration) error {
 
 // reserve counts one call against the run, failing if a limit is already
 // reached. The call's own usage is only known afterwards (see record).
-func (r *Runtime) reserve(runID string) error {
+func (r *Runtime) reserve(runID string) (call int, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	l := r.ledgerLocked(runID)
 	switch {
 	case l.calls >= r.limits.MaxCallsPerRun:
-		return fmt.Errorf("%w: %d calls", ErrBudgetExceeded, l.calls)
+		return 0, fmt.Errorf("%w: %d calls", ErrBudgetExceeded, l.calls)
 	case l.tokens >= r.limits.MaxTokensPerRun:
-		return fmt.Errorf("%w: %d tokens", ErrBudgetExceeded, l.tokens)
+		return 0, fmt.Errorf("%w: %d tokens", ErrBudgetExceeded, l.tokens)
 	case r.limits.MaxCostUSDPerRun > 0 && l.costUSD >= r.limits.MaxCostUSDPerRun:
-		return fmt.Errorf("%w: $%.4f", ErrBudgetExceeded, l.costUSD)
+		return 0, fmt.Errorf("%w: $%.4f", ErrBudgetExceeded, l.costUSD)
 	}
 	l.calls++
-	return nil
+	return l.calls, nil
 }
 
 // record adds a completed call's usage to the run and logs it. A response with
 // no usage fails closed.
-func (r *Runtime) record(task firm.Task, e entry, u agents.Usage, attempt int) error {
+func (r *Runtime) record(task firm.Task, e entry, u agents.Usage, attempt int) (float64, error) {
 	if u.Total() == 0 {
-		return ErrNoUsage
+		return 0, ErrNoUsage
 	}
-	cost := (float64(u.InputTokens)*e.price.InputUSDPerMTok + float64(u.OutputTokens)*e.price.OutputUSDPerMTok) / tokensPerMillion
+	cost := (float64(u.InputTokens)*e.llm.InputUSDPerMTok + float64(u.OutputTokens)*e.llm.OutputUSDPerMTok) / tokensPerMillion
 	r.mu.Lock()
 	l := r.ledgerLocked(task.RunID)
 	l.tokens += u.Total()
@@ -282,7 +292,41 @@ func (r *Runtime) record(task firm.Task, e entry, u agents.Usage, attempt int) e
 	slog.Info("model call", "run", task.RunID, "agent", task.Agent.ID, "attempt", attempt+1,
 		"input_tokens", u.InputTokens, "output_tokens", u.OutputTokens, "cost_usd", cost,
 		"run_calls", calls, "run_tokens", tokens, "run_cost_usd", total)
-	return nil
+	return cost, nil
+}
+
+// journalCall records one model call attempt, whether it succeeded or not.
+func (r *Runtime) journalCall(task firm.Task, e entry, call, attempt int, started time.Time, u agents.Usage, cost float64, callErr error) error {
+	if r.Journal == nil {
+		return nil
+	}
+	p := struct {
+		RunID        string    `json:"run_id"`
+		AgentID      string    `json:"agent_id"`
+		Role         string    `json:"role"`
+		Provider     string    `json:"provider"`
+		Model        string    `json:"model"`
+		Call         int       `json:"call"`    // Nth call of the run.
+		Attempt      int       `json:"attempt"` // 1-based attempt within the logical call.
+		Status       string    `json:"status"`  // ok or error.
+		Error        string    `json:"error,omitempty"`
+		InputTokens  int       `json:"input_tokens"`
+		OutputTokens int       `json:"output_tokens"`
+		CostUSD      float64   `json:"cost_usd"`
+		StartedAt    time.Time `json:"started_at"`
+		FinishedAt   time.Time `json:"finished_at"`
+	}{task.RunID, task.Agent.ID, task.Agent.Role, e.llm.Provider, e.llm.Model, call, attempt + 1, "ok", "",
+		u.InputTokens, u.OutputTokens, cost, started, time.Now().UTC()}
+	if callErr != nil {
+		p.Status, p.Error = "error", callErr.Error()
+	}
+	data, err := json.Marshal(p)
+	if err != nil {
+		return err
+	}
+	id := fmt.Sprintf("%s/%s/call-%d", task.RunID, task.Agent.ID, call)
+	return r.Journal.Append(journal.Record{ID: id, Kind: "model_call", Revision: 1, RevisionID: journal.RevisionID(id, 1),
+		SchemaVersion: journal.SchemaVersion, CreatedAt: started, Payload: data})
 }
 
 func (r *Runtime) ledgerLocked(runID string) *ledger {

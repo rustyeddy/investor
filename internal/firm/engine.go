@@ -3,6 +3,8 @@ package firm
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -60,11 +62,47 @@ type RunFinisher interface {
 	FinishRun(runID string)
 }
 
+// SkillRef identifies the exact skill instructions an agent step used.
+type SkillRef struct {
+	ID     string `json:"id"`
+	SHA256 string `json:"sha256"` // Digest of the instructions supplied to the model.
+}
+
+// Step is the outcome of one agent step: success, a stop, or a failure.
+type Step struct {
+	AgentID    string     `json:"agent_id"`
+	Role       string     `json:"role"`
+	Skills     []SkillRef `json:"skills"`
+	Status     string     `json:"status"` // succeeded, stopped, failed, or canceled.
+	Output     string     `json:"output,omitempty"`
+	Error      string     `json:"error,omitempty"`
+	StartedAt  time.Time  `json:"started_at"`
+	FinishedAt time.Time  `json:"finished_at"`
+}
+
+// Observer receives durable notifications as a run progresses so that evidence,
+// including failures and interrupted runs, is preserved. It is called
+// synchronously and fails closed: if any method returns an error, the engine
+// runs no further agents and fails the run.
+type Observer interface {
+	RunStarted(run Run) error
+	StepFinished(runID string, step Step) error
+	RunFinished(run Run) error
+}
+
 type Engine struct {
-	config  Config
-	runtime Runtime
-	tools   map[string]ToolFunc
-	mode    string
+	config   Config
+	runtime  Runtime
+	tools    map[string]ToolFunc
+	mode     string
+	observer Observer
+}
+
+// WithObserver sets the run observer and returns the engine. Call it before
+// the engine is used; it is not safe to change while runs are in progress.
+func (e *Engine) WithObserver(o Observer) *Engine {
+	e.observer = o
+	return e
 }
 
 func New(c Config, runtime Runtime, tools map[string]ToolFunc, mode string) (*Engine, error) {
@@ -96,7 +134,7 @@ func New(c Config, runtime Runtime, tools map[string]ToolFunc, mode string) (*En
 		}
 		registered[id] = fn
 	}
-	return &Engine{snapshot, runtime, registered, mode}, nil
+	return &Engine{config: snapshot, runtime: runtime, tools: registered, mode: mode}, nil
 }
 
 func (e *Engine) Plan(id string) ([]Agent, error) {
@@ -129,6 +167,13 @@ func (e *Engine) Run(ctx context.Context, workflow, objective string) (run Run, 
 	if f, ok := e.runtime.(RunFinisher); ok {
 		defer f.FinishRun(run.ID)
 	}
+	if e.observer != nil {
+		if oerr := e.observer.RunStarted(run); oerr != nil {
+			err = fmt.Errorf("journal: %w", oerr)
+			run.FinishedAt, run.Status, run.Error = time.Now().UTC(), "failed", err.Error()
+			return run, err
+		}
+	}
 	defer func() {
 		run.FinishedAt = time.Now().UTC()
 		run.Status = "succeeded"
@@ -139,6 +184,12 @@ func (e *Engine) Run(ctx context.Context, workflow, objective string) (run Run, 
 			run.Status, run.Error = "failed", err.Error()
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				run.Status = "canceled"
+			}
+		}
+		if e.observer != nil {
+			if oerr := e.observer.RunFinished(run); oerr != nil {
+				err = errors.Join(err, fmt.Errorf("journal: %w", oerr))
+				run.Status, run.Error = "failed", err.Error()
 			}
 		}
 	}()
@@ -153,23 +204,58 @@ func (e *Engine) Run(ctx context.Context, workflow, objective string) (run Run, 
 			Objective: objective,
 			Previous:  slices.Clone(run.Results),
 		}
+		started := time.Now().UTC()
 		var output string
 		output, err = e.runtime.Execute(ctx, task, e.toolCaller(agent))
 		if err == nil {
 			err = ctx.Err()
 		}
-		if err != nil && errors.Is(err, ErrStopped) && ctx.Err() == nil {
-			run.Results = append(run.Results, Result{AgentID: agent.ID, Output: output})
+		stopped := err != nil && errors.Is(err, ErrStopped) && ctx.Err() == nil
+		if stopped {
 			run.StopReason = fmt.Sprintf("agent %s: %v", agent.ID, err)
+		} else if err != nil {
+			err = fmt.Errorf("agent %s: %w", agent.ID, err)
+		}
+		if err == nil || stopped {
+			run.Results = append(run.Results, Result{AgentID: agent.ID, Output: output})
+		}
+		if e.observer != nil {
+			step := newStep(task, started, output, err, stopped)
+			if oerr := e.observer.StepFinished(run.ID, step); oerr != nil {
+				// The step's evidence is not durable: fail closed.
+				run.StopReason = ""
+				err = errors.Join(err, fmt.Errorf("journal: %w", oerr))
+				return run, err
+			}
+		}
+		if stopped {
 			return run, nil
 		}
 		if err != nil {
-			err = fmt.Errorf("agent %s: %w", agent.ID, err)
 			return run, err
 		}
-		run.Results = append(run.Results, Result{AgentID: agent.ID, Output: output})
 	}
 	return run, nil
+}
+
+// newStep describes one finished agent step for an Observer. err is nil for a
+// success; stopped marks a deliberate stop (err then carries the reason).
+func newStep(task Task, started time.Time, output string, err error, stopped bool) Step {
+	s := Step{AgentID: task.Agent.ID, Role: task.Agent.Role, Skills: []SkillRef{}, Status: "succeeded", Output: output, StartedAt: started, FinishedAt: time.Now().UTC()}
+	for _, sk := range task.Skills {
+		sum := sha256.Sum256([]byte(sk.Instructions))
+		s.Skills = append(s.Skills, SkillRef{ID: sk.ID, SHA256: hex.EncodeToString(sum[:])})
+	}
+	switch {
+	case stopped:
+		s.Status, s.Error = "stopped", err.Error()
+	case err != nil:
+		s.Status, s.Error = "failed", err.Error()
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			s.Status = "canceled"
+		}
+	}
+	return s
 }
 
 // skillsFor returns the configured skills the agent references, in the

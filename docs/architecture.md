@@ -46,6 +46,12 @@ run has call, token and optional cost limits (best-effort caps on observed usage
 engine releases through `firm.RunFinisher`. Limits fail the run (`failed`, not
 `stopped`) because they are an operational stop, not a research verdict.
 
+`internal/journal` is the append-only research journal behind a narrow
+`Journal` interface, currently immutable JSON files. The engine reports run,
+step and outcome events to a `firm.Observer` (the journal's observer) and fails
+closed if a write fails; `internal/model` records each model call attempt
+directly. `firm` does not depend on `journal`.
+
 Adding an MCP transport should expose the same service operations, not create
 a parallel workflow engine. Never expose trading execution or tools merely
 because an AI provider or transport supports them. Paper-trading policy and

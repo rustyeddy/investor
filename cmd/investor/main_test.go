@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/rustyeddy/investor/internal/firm"
+	"github.com/rustyeddy/investor/internal/journal"
 	"github.com/rustyeddy/investor/internal/service"
 	"github.com/rustyeddy/investor/internal/transport"
 )
@@ -158,5 +159,35 @@ func TestModelRuntimeFailsClearlyWithoutCredentials(t *testing.T) {
 	err = execute(context.Background(), []string{"run", "--runtime", "bogus", "--config", path}, &out, &errOut)
 	if err == nil || !strings.Contains(err.Error(), "unknown runtime") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestRunJournalRecordsRunAndSteps(t *testing.T) {
+	path, err := filepath.Abs("../../examples/firm.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(t.TempDir(), "journal")
+	var out, errOut bytes.Buffer
+	if err := execute(context.Background(), []string{"run", "--config", path, "--journal", dir}, &out, &errOut); err != nil {
+		t.Fatal(err)
+	}
+	var run firm.Run
+	if err := json.Unmarshal(out.Bytes(), &run); err != nil {
+		t.Fatal(err)
+	}
+	j, err := journal.Open(dir) // A fresh open, as after a restart.
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r, err := j.Latest("run", run.ID); err != nil || r.Revision != 2 {
+		t.Fatalf("run record: %+v, %v", r, err)
+	}
+	if ids, err := j.List("step"); err != nil || len(ids) != 5 {
+		t.Fatalf("steps: %v, %v", ids, err)
+	}
+	// Without --journal nothing is written.
+	if _, err := os.Stat(filepath.Join(t.TempDir(), "journal")); err == nil {
+		t.Fatal("unexpected journal")
 	}
 }

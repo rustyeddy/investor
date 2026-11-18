@@ -1,6 +1,6 @@
 # Research journal and evidence contract
 
-Status: design for Phase 1; no journal storage or paper execution is implemented.
+Status: design for Phase 1. An append-only JSON-file journal records runs, steps and model calls (see "Phase 1 persistence and export"); paper execution is not implemented.
 The current program remains dry-run only. This contract belongs to Investor;
 Trader and Tulip may consume exports or future APIs but are not authoritative
 stores for Investor workflow records.
@@ -173,7 +173,27 @@ states its included population and omitted/incomplete count.
 
 ## Phase 1 persistence and export
 
-Use SQLite as Investor's authoritative Phase 1 journal. Keep the first schema
+**Current implementation (issue #14).** While the schema is still changing,
+Investor's authoritative journal is a directory of immutable JSON files behind the
+narrow `journal.Journal` interface (`internal/journal`; enable with
+`run --journal DIR`). Each record revision is one file,
+`records/<kind>/<id>/<revision>.json`, written to a synced temporary file and
+hard-linked into place so an existing revision is never overwritten; the same
+file is also linked at `revisions/<revision_id>.json`, which makes revision IDs
+globally unique. Re-delivering an identical record is a no-op and a conflicting
+one is an error. `journal.json` holds the journal format version, and an
+unsupported version is refused. Files are plain, indented JSON with UTC RFC 3339
+nanosecond timestamps, safe to read and diff but not to edit. Recorded kinds so far:
+`run` (revision 1 at start, revision 2 with the outcome, so a run whose process
+died stays visible as `running`), `step` (one per agent step, including failures
+and stops, with SHA-256 digests of the skill instructions used) and `model_call`
+(one per provider attempt with provider, model, token usage, cost and error). A
+failed journal write fails the run and runs no further agents. Order, fill and
+reservation records are deferred to the paper-trading issue.
+
+**Intended end state.** Move to SQLite once the schema has settled; the interface
+and record semantics above are meant to carry over unchanged. Use SQLite as
+Investor's authoritative journal then. Keep the first schema
 relational and small: a `records` table for common identity/revision/timestamps
 and immutable payload, plus indexed typed tables (or JSON payload columns with
 validated Go structs) for runs, evidence, decisions, reservations, orders,
