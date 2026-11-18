@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 )
@@ -53,7 +54,7 @@ func PostJSON(ctx context.Context, client *http.Client, provider, url string, he
 	defer res.Body.Close()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		excerpt, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
-		return fmt.Errorf("%s: HTTP %d: %s", provider, res.StatusCode, strings.TrimSpace(string(excerpt)))
+		return &StatusError{Provider: provider, Status: res.StatusCode, Body: strings.TrimSpace(string(excerpt))}
 	}
 	if err := json.NewDecoder(io.LimitReader(res.Body, 8<<20)).Decode(out); err != nil {
 		return fmt.Errorf("%s: decode: %w", provider, err)
@@ -61,10 +62,41 @@ func PostJSON(ctx context.Context, client *http.Client, provider, url string, he
 	return nil
 }
 
+// StatusError is a non-2xx provider response.
+type StatusError struct {
+	Provider string
+	Status   int
+	Body     string
+}
+
+func (e *StatusError) Error() string {
+	return fmt.Sprintf("%s: HTTP %d: %s", e.Provider, e.Status, e.Body)
+}
+
+// Retryable reports whether the same request may succeed later: rate limits
+// and server-side errors.
+func (e *StatusError) Retryable() bool {
+	return e.Status == http.StatusTooManyRequests || e.Status >= 500
+}
+
+// Retryable reports whether err is a transient provider or network failure.
+// Context cancellation and deadlines are never retryable.
+func Retryable(err error) bool {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+	var se *StatusError
+	if errors.As(err, &se) {
+		return se.Retryable()
+	}
+	var ne net.Error
+	return errors.As(err, &ne) || errors.Is(err, io.ErrUnexpectedEOF)
+}
+
 // TextResponse joins text parts into a Response, or fails if there are none.
-func TextResponse(provider, kind string, parts []string) (Response, error) {
+func TextResponse(provider, kind string, parts []string, usage Usage) (Response, error) {
 	if len(parts) == 0 {
 		return Response{}, errors.New(provider + ": response has no " + kind)
 	}
-	return Response{Text: strings.Join(parts, "\n")}, nil
+	return Response{Text: strings.Join(parts, "\n"), Usage: usage}, nil
 }

@@ -2,6 +2,8 @@ package agents
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,10 +39,31 @@ func TestPostJSONStatus(t *testing.T) {
 }
 
 func TestTextResponse(t *testing.T) {
-	if got, err := TextResponse("p", "text", []string{"a", "b"}); err != nil || got.Text != "a\nb" {
+	if got, err := TextResponse("p", "text", []string{"a", "b"}, Usage{InputTokens: 2, OutputTokens: 3}); err != nil || got.Text != "a\nb" || got.Usage.Total() != 5 {
 		t.Fatalf("got %+v, %v", got, err)
 	}
-	if _, err := TextResponse("p", "text", nil); err == nil {
+	if _, err := TextResponse("p", "text", nil, Usage{}); err == nil {
 		t.Fatal("expected error for no parts")
+	}
+}
+
+func TestRetryable(t *testing.T) {
+	for _, tc := range []struct {
+		err  error
+		want bool
+	}{
+		{&StatusError{Status: 429}, true},
+		{&StatusError{Status: 503}, true},
+		{&StatusError{Status: 529}, true},
+		{&StatusError{Status: 400}, false},
+		{&StatusError{Status: 401}, false},
+		{context.DeadlineExceeded, false},
+		{context.Canceled, false},
+		{io.ErrUnexpectedEOF, true},
+		{errors.New("other"), false},
+	} {
+		if got := Retryable(tc.err); got != tc.want {
+			t.Errorf("Retryable(%v) = %v, want %v", tc.err, got, tc.want)
+		}
 	}
 }

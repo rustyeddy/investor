@@ -36,10 +36,10 @@ func serve(t *testing.T, status int, body string, got *map[string]any) *Agent {
 
 func TestRunSendsRequestAndReturnsText(t *testing.T) {
 	var req map[string]any
-	a := serve(t, 200, `{"stop_reason":"end_turn","content":[{"type":"text","text":"research"},{"type":"text","text":"result"}]}`, &req)
+	a := serve(t, 200, `{"stop_reason":"end_turn","usage":{"input_tokens":11,"output_tokens":7},"content":[{"type":"text","text":"research"},{"type":"text","text":"result"}]}`, &req)
 	a.MaxTokens = 77
 	got, err := a.Run(context.Background(), agents.Request{Instructions: "analyst", Prompt: "evaluate"})
-	if err != nil || got.Text != "research\nresult" {
+	if err != nil || got.Text != "research\nresult" || got.Usage.InputTokens != 11 || got.Usage.OutputTokens != 7 {
 		t.Fatalf("Run = %+v, %v", got, err)
 	}
 	msgs, _ := req["messages"].([]any)
