@@ -54,6 +54,10 @@ directly. `firm` does not depend on `journal`. The journal directory comes from
 `journal_dir` in the config file (overridden by `run --journal`), and
 `cmd/investor` refuses `--runtime model` without one.
 
+`internal/market` reads market data from Trader's REST API behind a narrow
+`Source` interface (REST client and fixture); see
+[trader-marketdata.md](trader-marketdata.md).
+
 Adding an MCP transport should expose the same service operations, not create
 a parallel workflow engine. Never expose trading execution or tools merely
 because an AI provider or transport supports them. Paper-trading policy and

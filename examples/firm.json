@@ -1,6 +1,11 @@
 {
   "skills_dir": "../skills",
   "journal_dir": "../journal",
+  "trader": {
+    "base_url": "http://127.0.0.1:8080",
+    "token_env": "TRADER_API_TOKEN",
+    "watchlist": ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "AUDUSD", "USDCAD"]
+  },
   "llm": {
     "provider": "claude",
     "model": "claude-sonnet-5-5",

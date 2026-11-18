@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"slices"
 	"strings"
 )
@@ -54,6 +55,28 @@ type LLM struct {
 	OutputUSDPerMTok float64 `json:"output_usd_per_mtok,omitempty"`
 }
 
+// Trader locates Trader's REST API, Investor's source of market data. The token
+// is never stored in configuration: TokenEnv names the environment variable that
+// holds it (default TRADER_API_TOKEN; it may be unset for a local Trader).
+type Trader struct {
+	BaseURL   string   `json:"base_url"`
+	TokenEnv  string   `json:"token_env,omitempty"`
+	Watchlist []string `json:"watchlist,omitempty"` // Instruments for the snapshot command.
+}
+
+func (t Trader) validate() error {
+	u, err := url.Parse(t.BaseURL)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return fmt.Errorf("trader: base_url %q must be an http(s) URL", t.BaseURL)
+	}
+	for _, in := range t.Watchlist {
+		if strings.TrimSpace(in) == "" || strings.TrimSpace(in) != in {
+			return fmt.Errorf("trader: invalid watchlist instrument %q", in)
+		}
+	}
+	return nil
+}
+
 // MaxRetriesLimit caps LLM.MaxRetries.
 const MaxRetriesLimit = 5
 
@@ -100,6 +123,7 @@ type Config struct {
 	LLM       *LLM           `json:"llm,omitempty"`
 	Roles     map[string]LLM `json:"roles,omitempty"` // Agent role name -> LLM.
 	Limits    Limits         `json:"limits,omitzero"`
+	Trader    *Trader        `json:"trader,omitempty"`
 	Agents    []Agent        `json:"agents"`
 	Skills    []Skill        `json:"skills"`
 	Tools     []Tool         `json:"tools"`
@@ -175,6 +199,11 @@ func (c Config) Validate() error {
 	}
 	if l := c.Limits; l.MaxCallsPerRun < 0 || l.MaxTokensPerRun < 0 || l.MaxCostUSDPerRun < 0 {
 		return fmt.Errorf("limits must not be negative")
+	}
+	if c.Trader != nil {
+		if err := c.Trader.validate(); err != nil {
+			return err
+		}
 	}
 	if c.LLM != nil {
 		if err := c.LLM.validate("llm"); err != nil {

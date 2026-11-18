@@ -4,7 +4,7 @@ Investor is the Go orchestration layer for an AI-assisted trading research firm.
 
 The journal is central: hypotheses, market observations, opportunities (including rejections), paper orders, decisions, and outcomes must be traceable to their evidence. Without durable records, we cannot tell whether a trading idea works.
 
-The current implementation is **dry-run only**. It validates definitions and exercises agent handoffs; it does not call LLMs, analyze markets, access Trader, or place trades.
+The current implementation is **dry-run only**. It validates definitions and exercises agent handoffs; it does not call LLMs by default, analyze markets, or place trades. `investor bars` and `investor snapshot` read completed bars from Trader's REST API ([market data](docs/trader-marketdata.md)).
 
 ## Development phases
 
