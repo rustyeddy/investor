@@ -59,8 +59,11 @@ const MaxRetriesLimit = 5
 
 // Limits bound model usage for one run. Zero means the model runtime default
 // (calls and tokens) or no cost limit. Every attempt, including retries, counts
-// as a call. Limits are checked before each call, so one call can overshoot by
-// at most its own bounded output.
+// as a call. Limits are best-effort caps on observed usage, not hard ceilings:
+// they are checked before each call against usage the providers have already
+// reported, so one call can overshoot by its input plus output tokens (input
+// size is not bounded), and a failed attempt that was billed but returned no
+// usage is not counted in tokens or cost.
 type Limits struct {
 	MaxCallsPerRun   int     `json:"max_calls_per_run,omitempty"`
 	MaxTokensPerRun  int     `json:"max_tokens_per_run,omitempty"`

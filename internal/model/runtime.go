@@ -23,6 +23,7 @@ import (
 const (
 	defaultTimeout   = 60 * time.Second
 	defaultRetries   = 2
+	defaultMaxOutput = 4096 // Output tokens per call when the LLM sets no max_tokens.
 	defaultMaxCalls  = 25
 	defaultMaxTokens = 200_000
 	defaultBackoff   = time.Second
@@ -136,8 +137,9 @@ func New(c firm.Config, getenv func(string) string) (*Runtime, error) {
 		if l.MaxRetries != nil {
 			retries = *l.MaxRetries
 		}
-		if c.Limits.MaxCostUSDPerRun > 0 && l.InputUSDPerMTok == 0 && l.OutputUSDPerMTok == 0 {
-			return nil, fmt.Errorf("role %q: limits.max_cost_usd_per_run is set, so its llm needs input_usd_per_mtok and output_usd_per_mtok", a.Role)
+		// A zero rate would price those tokens at $0 and undercount spend.
+		if c.Limits.MaxCostUSDPerRun > 0 && (l.InputUSDPerMTok <= 0 || l.OutputUSDPerMTok <= 0) {
+			return nil, fmt.Errorf("role %q: limits.max_cost_usd_per_run is set, so its llm needs positive input_usd_per_mtok and output_usd_per_mtok", a.Role)
 		}
 		r.roles[a.Role] = entry{agent: agent, timeout: timeout, retries: retries, price: l}
 	}
@@ -153,16 +155,19 @@ func newAgent(l firm.LLM, getenv func(string) string) (agents.Agent, error) {
 	if key == "" {
 		return nil, fmt.Errorf("%s credentials missing: environment variable %s is not set", l.Provider, env)
 	}
+	// Every call has an explicit output bound, whichever provider is used.
+	maxTokens := l.MaxTokens
+	if maxTokens <= 0 {
+		maxTokens = defaultMaxOutput
+	}
 	switch l.Provider {
 	case "openai":
 		a := openai.New(key, l.Model)
-		a.MaxTokens = l.MaxTokens
+		a.MaxTokens = maxTokens
 		return a, nil
 	case "claude":
 		a := claude.New(key, l.Model)
-		if l.MaxTokens > 0 {
-			a.MaxTokens = l.MaxTokens
-		}
+		a.MaxTokens = maxTokens
 		return a, nil
 	}
 	return nil, fmt.Errorf("unknown provider %q", l.Provider)

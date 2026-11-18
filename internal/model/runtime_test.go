@@ -5,11 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/rustyeddy/investor/agents"
+	"github.com/rustyeddy/investor/agents/claude"
+	"github.com/rustyeddy/investor/agents/openai"
 	"github.com/rustyeddy/investor/internal/firm"
 )
 
@@ -391,7 +395,60 @@ func TestNewAppliesLimitsRetriesAndRequiresPricesForCostLimit(t *testing.T) {
 		t.Fatalf("default retries = %d", r.roles["Market Analyst"].retries)
 	}
 	c.Limits.MaxCostUSDPerRun = 1
-	if _, err := New(c, env(map[string]string{"ANTHROPIC_API_KEY": "k"})); err == nil || !strings.Contains(err.Error(), "input_usd_per_mtok") {
-		t.Fatalf("cost limit without prices: %v", err)
+	for name, l := range map[string]firm.LLM{
+		"no prices":   {Provider: "claude", Model: "m"},
+		"input only":  {Provider: "claude", Model: "m", InputUSDPerMTok: 3},
+		"output only": {Provider: "claude", Model: "m", OutputUSDPerMTok: 15},
+	} {
+		c.LLM = &l
+		if _, err := New(c, env(map[string]string{"ANTHROPIC_API_KEY": "k"})); err == nil || !strings.Contains(err.Error(), "positive input_usd_per_mtok and output_usd_per_mtok") {
+			t.Fatalf("%s: err = %v", name, err)
+		}
+	}
+	// A role override with incomplete prices is rejected even if the default is complete.
+	good := firm.LLM{Provider: "claude", Model: "m", InputUSDPerMTok: 3, OutputUSDPerMTok: 15}
+	c = cfg(&good, map[string]firm.LLM{"Strategy Challenger": {Provider: "openai", Model: "m", InputUSDPerMTok: 1}})
+	c.Limits.MaxCostUSDPerRun = 1
+	if _, err := New(c, env(map[string]string{"ANTHROPIC_API_KEY": "k", "OPENAI_API_KEY": "k"})); err == nil || !strings.Contains(err.Error(), "Strategy Challenger") {
+		t.Fatalf("role override: %v", err)
+	}
+	c.Roles["Strategy Challenger"] = firm.LLM{Provider: "openai", Model: "m", InputUSDPerMTok: 1, OutputUSDPerMTok: 2}
+	if _, err := New(c, env(map[string]string{"ANTHROPIC_API_KEY": "k", "OPENAI_API_KEY": "k"})); err != nil {
+		t.Fatalf("complete prices: %v", err)
+	}
+}
+
+// TestDefaultConfigBoundsOutputOnTheWire builds agents through New with no
+// max_tokens configured and checks the request each provider actually sends.
+func TestDefaultConfigBoundsOutputOnTheWire(t *testing.T) {
+	for provider, field := range map[string]string{"openai": "max_output_tokens", "claude": "max_tokens"} {
+		t.Run(provider, func(t *testing.T) {
+			var body map[string]any
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_ = json.NewDecoder(r.Body).Decode(&body)
+				http.Error(w, "stop here", http.StatusBadRequest) // Only the request matters.
+			}))
+			defer server.Close()
+			c := cfg(&firm.LLM{Provider: provider, Model: "m"}, nil)
+			r, err := New(c, env(map[string]string{"ANTHROPIC_API_KEY": "k", "OPENAI_API_KEY": "k"}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch a := r.roles["Market Analyst"].agent.(type) {
+			case *openai.Agent:
+				a.Endpoint, a.Client = server.URL, server.Client()
+			case *claude.Agent:
+				a.Endpoint, a.Client = server.URL, server.Client()
+			}
+			_, _ = r.Execute(context.Background(), task("Market Analyst"), nil)
+			if body[field] != float64(defaultMaxOutput) {
+				t.Fatalf("%s = %v, want %d (body %v)", field, body[field], defaultMaxOutput, body)
+			}
+		})
+	}
+	// An explicit max_tokens wins over the default.
+	r, err := New(cfg(&firm.LLM{Provider: "openai", Model: "m", MaxTokens: 123}, nil), env(map[string]string{"OPENAI_API_KEY": "k"}))
+	if err != nil || r.roles["Market Analyst"].agent.(*openai.Agent).MaxTokens != 123 {
+		t.Fatalf("explicit max_tokens: %v", err)
 	}
 }
