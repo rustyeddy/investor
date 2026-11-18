@@ -52,6 +52,8 @@ func TestRetryable(t *testing.T) {
 		err  error
 		want bool
 	}{
+		{&StatusError{Status: 429, Body: `{"error":{"message":"Rate limit reached","type":"requests"}}`}, true},
+		{&StatusError{Status: 429, Body: `{"error":{"type":"insufficient_quota","code":"credit_balance_exhausted"}}`}, false},
 		{&StatusError{Status: 429}, true},
 		{&StatusError{Status: 503}, true},
 		{&StatusError{Status: 529}, true},
