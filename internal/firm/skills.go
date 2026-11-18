@@ -14,7 +14,8 @@ var skillIDPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 func validSkillID(id string) bool { return len(id) <= 63 && skillIDPattern.MatchString(id) }
 
-// Load resolves file-backed skills relative to the configuration file. Legacy
+// Load resolves file-backed skills and the journal directory relative to the
+// configuration file. Legacy
 // inline instructions remain supported. No filesystem access occurs during runs.
 func Load(path string) (Config, error) {
 	f, err := os.Open(path)
@@ -63,6 +64,9 @@ func Load(path string) (Config, error) {
 			return c, fmt.Errorf("skill %q (%s): %w", s.ID, filepath.Join(dir, name), err)
 		}
 		c.Skills[i] = loaded
+	}
+	if c.JournalDir != "" && !filepath.IsAbs(c.JournalDir) {
+		c.JournalDir = filepath.Join(filepath.Dir(path), c.JournalDir)
 	}
 	return c, c.Validate()
 }

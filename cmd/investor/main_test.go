@@ -41,7 +41,12 @@ func TestExampleCommandsAndCatalog(t *testing.T) {
 	t.Chdir(t.TempDir())
 	for _, command := range []string{"validate", "plan", "run"} {
 		var out, errOut bytes.Buffer
-		if err := execute(context.Background(), []string{command, "--config", path}, &out, &errOut); err != nil {
+		// The example config names a journal; keep tests out of the repository.
+		args := []string{command, "--config", path}
+		if command == "run" {
+			args = append(args, "--journal", filepath.Join(t.TempDir(), "journal"))
+		}
+		if err := execute(context.Background(), args, &out, &errOut); err != nil {
 			t.Fatalf("%s: %v", command, err)
 		}
 		if !json.Valid(out.Bytes()) {
@@ -135,7 +140,7 @@ func TestRunHonorsContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	var out, errOut bytes.Buffer
-	err = execute(ctx, []string{"run", "--config", path}, &out, &errOut)
+	err = execute(ctx, []string{"run", "--config", path, "--journal", filepath.Join(t.TempDir(), "journal")}, &out, &errOut)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v", err)
 	}
@@ -189,5 +194,101 @@ func TestRunJournalRecordsRunAndSteps(t *testing.T) {
 	// Without --journal nothing is written.
 	if _, err := os.Stat(filepath.Join(t.TempDir(), "journal")); err == nil {
 		t.Fatal("unexpected journal")
+	}
+}
+
+// configWith writes a copy of the example config into a temp dir with extra
+// top-level keys, absolute skills_dir, and returns its path.
+func configWith(t *testing.T, extra map[string]any) string {
+	t.Helper()
+	example, err := filepath.Abs("../../examples/firm.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(example)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var c map[string]any
+	if err := json.Unmarshal(data, &c); err != nil {
+		t.Fatal(err)
+	}
+	c["skills_dir"] = filepath.Join(filepath.Dir(example), "..", "skills")
+	delete(c, "journal_dir")
+	for k, v := range extra {
+		c[k] = v
+	}
+	out, _ := json.Marshal(c)
+	path := filepath.Join(t.TempDir(), "firm.json")
+	if err := os.WriteFile(path, out, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func TestModelRuntimeRequiresAJournal(t *testing.T) {
+	t.Setenv("ANTHROPIC_API_KEY", "test-key")
+	path := configWith(t, nil) // No journal_dir.
+	var out, errOut bytes.Buffer
+	err := execute(context.Background(), []string{"run", "--runtime", "model", "--config", path}, &out, &errOut)
+	if err == nil || !strings.Contains(err.Error(), "requires a journal") || !strings.Contains(err.Error(), "journal_dir") || out.Len() != 0 {
+		t.Fatalf("stdout=%q err=%v", out.String(), err)
+	}
+	// Credentials failing must not create the journal directory.
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	dir := filepath.Join(t.TempDir(), "j")
+	err = execute(context.Background(), []string{"run", "--runtime", "model", "--journal", dir, "--config", path}, &out, &errOut)
+	if err == nil || !strings.Contains(err.Error(), "ANTHROPIC_API_KEY is not set") {
+		t.Fatalf("err = %v", err)
+	}
+	if _, err := os.Stat(dir); err == nil {
+		t.Fatal("journal directory created before the run could start")
+	}
+}
+
+func TestJournalDirFromConfigIsRelativeToConfigAndFlagOverrides(t *testing.T) {
+	path := configWith(t, map[string]any{"journal_dir": "records-here"})
+	var out, errOut bytes.Buffer
+	if err := execute(context.Background(), []string{"run", "--config", path}, &out, &errOut); err != nil {
+		t.Fatal(err)
+	}
+	var run firm.Run
+	if err := json.Unmarshal(out.Bytes(), &run); err != nil {
+		t.Fatal(err)
+	}
+	j, err := journal.Open(filepath.Join(filepath.Dir(path), "records-here"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r, err := j.Latest("run", run.ID); err != nil || r.Revision != 2 {
+		t.Fatalf("run not journaled in the config's journal_dir: %+v, %v", r, err)
+	}
+	// --journal wins over the config file.
+	override := filepath.Join(t.TempDir(), "other")
+	out.Reset()
+	if err := execute(context.Background(), []string{"run", "--config", path, "--journal", override}, &out, &errOut); err != nil {
+		t.Fatal(err)
+	}
+	if ids, err := (func() ([]string, error) {
+		o, e := journal.Open(override)
+		if e != nil {
+			return nil, e
+		}
+		return o.List("run")
+	})(); err != nil || len(ids) != 1 {
+		t.Fatalf("override journal: %v, %v", ids, err)
+	}
+	if ids, _ := j.List("run"); len(ids) != 1 {
+		t.Fatalf("flag run leaked into the config journal: %v", ids)
+	}
+	// Commands that do not execute a workflow never open a journal.
+	other := configWith(t, map[string]any{"journal_dir": "never-created"})
+	for _, c := range []string{"validate", "plan"} {
+		if err := execute(context.Background(), []string{c, "--config", other}, &out, &errOut); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(filepath.Dir(other), "never-created")); err == nil {
+		t.Fatal("validate/plan created a journal")
 	}
 }

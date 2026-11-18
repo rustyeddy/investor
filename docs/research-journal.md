@@ -175,8 +175,8 @@ states its included population and omitted/incomplete count.
 
 **Current implementation (issue #14).** While the schema is still changing,
 Investor's authoritative journal is a directory of immutable JSON files behind the
-narrow `journal.Journal` interface (`internal/journal`; enable with
-`run --journal DIR`). Each record revision is one file,
+narrow `journal.Journal` interface (`internal/journal`; set `journal_dir` in the config
+file or pass `run --journal DIR`; the model runtime requires one). Each record revision is one file,
 `records/<kind>/<id>/<revision>.json`, written to a synced temporary file and
 hard-linked into place so an existing revision is never overwritten; the same
 file is also linked at `revisions/<revision_id>.json`, which makes revision IDs

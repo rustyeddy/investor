@@ -41,7 +41,7 @@ bin/investor serve --listen 127.0.0.1:8090
 
 ### Research journal
 
-`run --journal DIR` appends the run, each agent step (including failures and stops) and each model call attempt to an append-only directory of JSON files (see `docs/research-journal.md`). Records are never overwritten; a run's outcome is a second revision, so a run interrupted mid-way stays visible as `running`. A failed journal write fails the run. Journaling is off unless `--journal` is given. The journal holds research evidence; keep it out of version control (`/journal/` is gitignored).
+`run` appends the run, each agent step (including failures and stops) and each model call attempt to an append-only directory of JSON files (see `docs/research-journal.md`). Records are never overwritten; a run's outcome is a second revision, so a run interrupted mid-way stays visible as `running`. A failed journal write fails the run. The directory is `journal_dir` in the config file (relative paths resolve against the config file, like `skills_dir`; the example uses `../journal`), overridden by `run --journal DIR`. With neither, dry-run workflows are not recorded, and `--runtime model` refuses to start: paid, model-backed research must leave a durable record. `validate`, `plan` and `serve` never open the journal. The journal holds research evidence; keep it out of version control (`/journal/` is gitignored).
 
 ### Model runtime
 

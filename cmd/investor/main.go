@@ -58,7 +58,9 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 
 	// load is the composition root: it builds the dry-run engine and the
 	// service every command uses. Every command validates configuration first.
-	load := func(runtime string) (*service.Service, error) {
+	// record is true for commands that execute a workflow (run); only those
+	// open the journal.
+	load := func(runtime string, record bool) (*service.Service, error) {
 		c, err := firm.Load(configPath)
 		if err != nil {
 			return nil, fmt.Errorf("configuration: %w", err)
@@ -68,18 +70,28 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 			mode              = "dry-run"
 			j    journal.Journal
 		)
-		if journalDir != "" {
-			if j, err = journal.Open(journalDir); err != nil {
+		dir := journalDir // The flag overrides the config file.
+		if dir == "" {
+			dir = c.JournalDir
+		}
+		var m *model.Runtime
+		if runtime == "model" {
+			// Paid, model-backed research must leave a durable record.
+			if dir == "" {
+				return nil, errors.New("model runtime requires a journal: set journal_dir in the config file or pass --journal")
+			}
+			if m, err = model.New(c, os.Getenv); err != nil {
+				return nil, fmt.Errorf("model runtime: %w", err)
+			}
+			rt, mode = m, "research"
+		}
+		if record && dir != "" {
+			if j, err = journal.Open(dir); err != nil {
 				return nil, err
 			}
 		}
-		if runtime == "model" {
-			m, err := model.New(c, os.Getenv)
-			if err != nil {
-				return nil, fmt.Errorf("model runtime: %w", err)
-			}
+		if m != nil {
 			m.Journal = j
-			rt, mode = m, "research"
 		}
 		e, err := firm.New(c, rt, nil, mode)
 		if err != nil {
@@ -101,7 +113,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 		Short: "Validate the firm configuration and its skills",
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
-			if _, err := load("dry-run"); err != nil {
+			if _, err := load("dry-run", false); err != nil {
 				return err
 			}
 			return encode(map[string]bool{"valid": true})
@@ -113,7 +125,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 		Short: "Print the ordered agents of a workflow",
 		Args:  cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error {
-			app, err := load("dry-run")
+			app, err := load("dry-run", false)
 			if err != nil {
 				return err
 			}
@@ -134,7 +146,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 			if runtimeName != "dry-run" && runtimeName != "model" {
 				return fmt.Errorf("unknown runtime %q (want dry-run or model)", runtimeName)
 			}
-			app, err := load(runtimeName)
+			app, err := load(runtimeName, true)
 			if err != nil {
 				return err
 			}
@@ -149,7 +161,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	}
 	run.Flags().StringVar(&workflow, "workflow", "research", "workflow ID")
 	run.Flags().StringVar(&objective, "objective", "", "workflow objective")
-	run.Flags().StringVar(&journalDir, "journal", "", "directory of the append-only research journal; records runs, steps and model calls (disabled if empty)")
+	run.Flags().StringVar(&journalDir, "journal", "", "research journal directory, overriding journal_dir in the config file; required for --runtime model")
 	run.Flags().StringVar(&runtimeName, "runtime", "dry-run", `runtime: "dry-run" or "model" (calls the LLMs configured in the config file)`)
 
 	serveCmd := &cobra.Command{
@@ -157,7 +169,7 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 		Short: "Serve the HTTP API in the foreground",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			app, err := load("dry-run")
+			app, err := load("dry-run", false)
 			if err != nil {
 				return err
 			}

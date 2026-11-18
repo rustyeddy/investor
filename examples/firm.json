@@ -1,5 +1,6 @@
 {
   "skills_dir": "../skills",
+  "journal_dir": "../journal",
   "llm": {
     "provider": "claude",
     "model": "claude-sonnet-5-5",
