@@ -91,6 +91,10 @@ func (l LLM) validate(where string) error {
 
 type Config struct {
 	SkillsDir string `json:"skills_dir,omitempty"`
+	// JournalDir is the research journal directory (relative paths are resolved
+	// against the config file by Load). Runs record to it when set, and the
+	// model runtime refuses to run without a journal.
+	JournalDir string `json:"journal_dir,omitempty"`
 	// LLM is the default model for roles without an entry in Roles. Both are
 	// used only by the model runtime; the dry-run runtime ignores them.
 	LLM       *LLM           `json:"llm,omitempty"`

@@ -175,8 +175,8 @@ states its included population and omitted/incomplete count.
 
 **Current implementation (issue #14).** While the schema is still changing,
 Investor's authoritative journal is a directory of immutable JSON files behind the
-narrow `journal.Journal` interface (`internal/journal`; enable with
-`run --journal DIR`). Each record revision is one file,
+narrow `journal.Journal` interface (`internal/journal`; set `journal_dir` in the config
+file or pass `run --journal DIR`; the model runtime requires one). Each record revision is one file,
 `records/<kind>/<id>/<revision>.json`, written to a synced temporary file and
 hard-linked into place so an existing revision is never overwritten; the same
 file is also linked at `revisions/<revision_id>.json`, which makes revision IDs
@@ -190,6 +190,14 @@ and stops, with SHA-256 digests of the skill instructions used) and `model_call`
 (one per provider attempt with provider, model, token usage, cost and error). A
 failed journal write fails the run and runs no further agents. Order, fill and
 reservation records are deferred to the paper-trading issue.
+
+Known limitations of the file journal: it assumes a single writer process (two
+processes appending to the same directory are not coordinated beyond the
+no-overwrite guarantee on each revision); it needs a filesystem that supports hard
+links (local Linux and macOS filesystems do; some network and FAT filesystems do
+not); there is no backup, retention or export tooling yet; and journaling is
+required only for the model runtime, so dry-run workflows are recorded only when a
+journal is configured.
 
 **Intended end state.** Move to SQLite once the schema has settled; the interface
 and record semantics above are meant to carry over unchanged. Use SQLite as

@@ -50,7 +50,9 @@ engine releases through `firm.RunFinisher`. Limits fail the run (`failed`, not
 `Journal` interface, currently immutable JSON files. The engine reports run,
 step and outcome events to a `firm.Observer` (the journal's observer) and fails
 closed if a write fails; `internal/model` records each model call attempt
-directly. `firm` does not depend on `journal`.
+directly. `firm` does not depend on `journal`. The journal directory comes from
+`journal_dir` in the config file (overridden by `run --journal`), and
+`cmd/investor` refuses `--runtime model` without one.
 
 Adding an MCP transport should expose the same service operations, not create
 a parallel workflow engine. Never expose trading execution or tools merely
