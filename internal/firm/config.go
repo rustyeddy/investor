@@ -43,7 +43,31 @@ type LLM struct {
 	Model          string `json:"model"`
 	APIKeyEnv      string `json:"api_key_env,omitempty"`
 	MaxTokens      int    `json:"max_tokens,omitempty"`      // Claude only.
-	TimeoutSeconds int    `json:"timeout_seconds,omitempty"` // Per model call; default 60.
+	TimeoutSeconds int    `json:"timeout_seconds,omitempty"` // Per model call attempt; default 60.
+	// MaxRetries bounds retries of transient provider errors (rate limits,
+	// 5xx, connection failures); default 2, at most MaxRetriesLimit. Invalid
+	// or truncated output and timeouts are never retried.
+	MaxRetries *int `json:"max_retries,omitempty"`
+	// Prices in USD per million tokens; required for every LLM when
+	// limits.max_cost_usd_per_run is set.
+	InputUSDPerMTok  float64 `json:"input_usd_per_mtok,omitempty"`
+	OutputUSDPerMTok float64 `json:"output_usd_per_mtok,omitempty"`
+}
+
+// MaxRetriesLimit caps LLM.MaxRetries.
+const MaxRetriesLimit = 5
+
+// Limits bound model usage for one run. Zero means the model runtime default
+// (calls and tokens) or no cost limit. Every attempt, including retries, counts
+// as a call. Limits are best-effort caps on observed usage, not hard ceilings:
+// they are checked before each call against usage the providers have already
+// reported, so one call can overshoot by its input plus output tokens (input
+// size is not bounded), and a failed attempt that was billed but returned no
+// usage is not counted in tokens or cost.
+type Limits struct {
+	MaxCallsPerRun   int     `json:"max_calls_per_run,omitempty"`
+	MaxTokensPerRun  int     `json:"max_tokens_per_run,omitempty"`
+	MaxCostUSDPerRun float64 `json:"max_cost_usd_per_run,omitempty"`
 }
 
 // Providers are the model providers Investor can run roles on.
@@ -56,8 +80,11 @@ func (l LLM) validate(where string) error {
 	if strings.TrimSpace(l.Model) == "" {
 		return fmt.Errorf("%s: llm model is required", where)
 	}
-	if l.MaxTokens < 0 || l.TimeoutSeconds < 0 {
-		return fmt.Errorf("%s: llm max_tokens and timeout_seconds must not be negative", where)
+	if l.MaxTokens < 0 || l.TimeoutSeconds < 0 || l.InputUSDPerMTok < 0 || l.OutputUSDPerMTok < 0 {
+		return fmt.Errorf("%s: llm max_tokens, timeout_seconds and prices must not be negative", where)
+	}
+	if l.MaxRetries != nil && (*l.MaxRetries < 0 || *l.MaxRetries > MaxRetriesLimit) {
+		return fmt.Errorf("%s: llm max_retries must be between 0 and %d", where, MaxRetriesLimit)
 	}
 	return nil
 }
@@ -68,6 +95,7 @@ type Config struct {
 	// used only by the model runtime; the dry-run runtime ignores them.
 	LLM       *LLM           `json:"llm,omitempty"`
 	Roles     map[string]LLM `json:"roles,omitempty"` // Agent role name -> LLM.
+	Limits    Limits         `json:"limits,omitzero"`
 	Agents    []Agent        `json:"agents"`
 	Skills    []Skill        `json:"skills"`
 	Tools     []Tool         `json:"tools"`
@@ -140,6 +168,9 @@ func (c Config) Validate() error {
 				return fmt.Errorf("agent %q references unknown tool %q", a.ID, id)
 			}
 		}
+	}
+	if l := c.Limits; l.MaxCallsPerRun < 0 || l.MaxTokensPerRun < 0 || l.MaxCostUSDPerRun < 0 {
+		return fmt.Errorf("limits must not be negative")
 	}
 	if c.LLM != nil {
 		if err := c.LLM.validate("llm"); err != nil {

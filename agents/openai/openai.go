@@ -21,6 +21,8 @@ type Agent struct {
 	Client *http.Client
 	// Endpoint is intended for local tests and compatible gateways.
 	Endpoint string
+	// MaxTokens bounds output tokens per call when positive.
+	MaxTokens int
 }
 
 var _ agents.Agent = (*Agent)(nil)
@@ -36,13 +38,15 @@ func (a *Agent) Run(ctx context.Context, input agents.Request) (agents.Response,
 		endpoint = defaultURL
 	}
 	payload := struct {
-		Model        string `json:"model"`
-		Instructions string `json:"instructions"`
-		Input        string `json:"input"`
-	}{a.Model, input.Instructions, input.Prompt}
+		Model           string `json:"model"`
+		Instructions    string `json:"instructions"`
+		Input           string `json:"input"`
+		MaxOutputTokens int    `json:"max_output_tokens,omitempty"`
+	}{a.Model, input.Instructions, input.Prompt, max(a.MaxTokens, 0)}
 	var decoded struct {
 		agents.Envelope
-		Status            string `json:"status"`
+		Status            string       `json:"status"`
+		Usage             agents.Usage `json:"usage"`
 		IncompleteDetails *struct {
 			Reason string `json:"reason"`
 		} `json:"incomplete_details"`
@@ -79,5 +83,5 @@ func (a *Agent) Run(ctx context.Context, input agents.Request) (agents.Response,
 			}
 		}
 	}
-	return agents.TextResponse(provider, "output_text", parts)
+	return agents.TextResponse(provider, "output_text", parts, decoded.Usage)
 }

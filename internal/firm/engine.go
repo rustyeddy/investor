@@ -54,6 +54,12 @@ type Runtime interface {
 	Execute(ctx context.Context, task Task, callTool CallTool) (string, error)
 }
 
+// RunFinisher is optionally implemented by a Runtime that keeps per-run state;
+// the engine calls FinishRun when a run ends, however it ends.
+type RunFinisher interface {
+	FinishRun(runID string)
+}
+
 type Engine struct {
 	config  Config
 	runtime Runtime
@@ -120,6 +126,9 @@ func (e *Engine) Run(ctx context.Context, workflow, objective string) (run Run, 
 		return run, err
 	}
 	run = Run{ID: rand.Text(), Workflow: workflow, Objective: objective, Mode: e.mode, Status: "running", StartedAt: time.Now().UTC(), Results: []Result{}}
+	if f, ok := e.runtime.(RunFinisher); ok {
+		defer f.FinishRun(run.ID)
+	}
 	defer func() {
 		run.FinishedAt = time.Now().UTC()
 		run.Status = "succeeded"

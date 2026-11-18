@@ -36,12 +36,13 @@ func serve(t *testing.T, status int, body string, got *map[string]any) *Agent {
 
 func TestRunSendsRequestAndReturnsText(t *testing.T) {
 	var req map[string]any
-	a := serve(t, 200, `{"status":"completed","output":[{"type":"message","content":[{"type":"output_text","text":"research"},{"type":"output_text","text":"result"}]}]}`, &req)
+	a := serve(t, 200, `{"status":"completed","usage":{"input_tokens":11,"output_tokens":7},"output":[{"type":"message","content":[{"type":"output_text","text":"research"},{"type":"output_text","text":"result"}]}]}`, &req)
+	a.MaxTokens = 99
 	got, err := a.Run(context.Background(), agents.Request{Instructions: "analyst", Prompt: "evaluate"})
-	if err != nil || got.Text != "research\nresult" {
+	if err != nil || got.Text != "research\nresult" || got.Usage.InputTokens != 11 || got.Usage.OutputTokens != 7 {
 		t.Fatalf("Run = %+v, %v", got, err)
 	}
-	if req["model"] != "test-model" || req["instructions"] != "analyst" || req["input"] != "evaluate" {
+	if req["model"] != "test-model" || req["instructions"] != "analyst" || req["input"] != "evaluate" || req["max_output_tokens"] != float64(99) {
 		t.Fatalf("request = %v", req)
 	}
 }

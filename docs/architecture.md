@@ -41,7 +41,10 @@ the provider and model for each role; `cmd/investor` builds it for
 `run --runtime model`. It supplies the role authority, complete skill
 instructions and objective as trusted inputs, labels prior role outputs as
 untrusted evidence, applies a per-call timeout, and accepts only a strictly
-validated JSON artifact. A `blocked` or `rejected` artifact is returned with `firm.ErrStopped`: the engine keeps it as evidence, skips later agents, and ends the run `stopped` (no error, no approval). Investor assigns artifact IDs. Retries and usage/cost limits are not implemented yet.
+validated JSON artifact. A `blocked` or `rejected` artifact is returned with `firm.ErrStopped`: the engine keeps it as evidence, skips later agents, and ends the run `stopped` (no error, no approval). Investor assigns artifact IDs. Transient provider errors are retried with a bounded count and backoff; each
+run has call, token and optional cost limits (best-effort caps on observed usage, not hard ceilings) tracked in a per-run ledger that the
+engine releases through `firm.RunFinisher`. Limits fail the run (`failed`, not
+`stopped`) because they are an operational stop, not a research verdict.
 
 Adding an MCP transport should expose the same service operations, not create
 a parallel workflow engine. Never expose trading execution or tools merely

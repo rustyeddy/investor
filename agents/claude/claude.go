@@ -47,7 +47,8 @@ func (a *Agent) Run(ctx context.Context, input agents.Request) (agents.Response,
 	}{a.Model, input.Instructions, maxTokens, []map[string]string{{"role": "user", "content": input.Prompt}}}
 	var decoded struct {
 		agents.Envelope
-		StopReason string `json:"stop_reason"`
+		StopReason string       `json:"stop_reason"`
+		Usage      agents.Usage `json:"usage"`
 		Content    []struct {
 			Type string `json:"type"`
 			Text string `json:"text"`
@@ -75,5 +76,5 @@ func (a *Agent) Run(ctx context.Context, input agents.Request) (agents.Response,
 			parts = append(parts, c.Text)
 		}
 	}
-	return agents.TextResponse(provider, "text", parts)
+	return agents.TextResponse(provider, "text", parts, decoded.Usage)
 }
