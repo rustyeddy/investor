@@ -191,6 +191,14 @@ and stops, with SHA-256 digests of the skill instructions used) and `model_call`
 failed journal write fails the run and runs no further agents. Order, fill and
 reservation records are deferred to the paper-trading issue.
 
+Known limitations of the file journal: it assumes a single writer process (two
+processes appending to the same directory are not coordinated beyond the
+no-overwrite guarantee on each revision); it needs a filesystem that supports hard
+links (local Linux and macOS filesystems do; some network and FAT filesystems do
+not); there is no backup, retention or export tooling yet; and journaling is
+required only for the model runtime, so dry-run workflows are recorded only when a
+journal is configured.
+
 **Intended end state.** Move to SQLite once the schema has settled; the interface
 and record semantics above are meant to carry over unchanged. Use SQLite as
 Investor's authoritative journal then. Keep the first schema
