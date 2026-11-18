@@ -74,9 +74,13 @@ func (e *StatusError) Error() string {
 }
 
 // Retryable reports whether the same request may succeed later: rate limits
-// and server-side errors.
+// and server-side errors. OpenAI also answers 429 when the account has no
+// credits left (insufficient_quota); waiting does not fix that.
 func (e *StatusError) Retryable() bool {
-	return e.Status == http.StatusTooManyRequests || e.Status >= 500
+	if e.Status == http.StatusTooManyRequests {
+		return !strings.Contains(e.Body, "insufficient_quota")
+	}
+	return e.Status >= 500
 }
 
 // Retryable reports whether err is a transient provider or network failure.
