@@ -35,6 +35,10 @@ bin/investor run --workflow research --objective 'Evaluate a trend-following hyp
 bin/investor serve --listen 127.0.0.1:8090
 ```
 
+### Make targets
+
+`make help` lists them. `make build` builds `bin/investor`; `make run` builds and runs a workflow (dry-run by default; pass extra flags with `ARGS`, for example `make run ARGS='--runtime model --objective "Evaluate EUR/USD"'`); `make validate`, `make plan` and `make serve` wrap the matching commands; `make test` runs `go test -race ./...`; `make vet` runs `go vet ./...`; `make check` runs gofmt-check, vet and tests (the checks required before a PR); `make fmt` formats; `make clean` removes `bin/`. Override the config with `CONFIG=path/to/firm.json`.
+
 ### Model runtime
 
 `run --runtime model` sends each role's authority, complete skill instructions and the objective to the LLM configured for that role, using a fixed **synthetic** market snapshot. The default `--runtime dry-run` makes no model calls. Choose LLMs in the config file: a default `llm`, optionally overridden per role under `roles` (keyed by the agent's `role` name):
