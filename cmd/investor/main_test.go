@@ -143,3 +143,20 @@ func TestRunHonorsContextCancellation(t *testing.T) {
 		t.Fatalf("run=%+v err=%v stdout=%q", run, err, out.String())
 	}
 }
+
+func TestModelRuntimeFailsClearlyWithoutCredentials(t *testing.T) {
+	path, err := filepath.Abs("../../examples/firm.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	var out, errOut bytes.Buffer
+	err = execute(context.Background(), []string{"run", "--runtime", "model", "--config", path}, &out, &errOut)
+	if err == nil || !strings.Contains(err.Error(), "ANTHROPIC_API_KEY is not set") || out.Len() != 0 {
+		t.Fatalf("stdout=%q err=%v", out.String(), err)
+	}
+	err = execute(context.Background(), []string{"run", "--runtime", "bogus", "--config", path}, &out, &errOut)
+	if err == nil || !strings.Contains(err.Error(), "unknown runtime") {
+		t.Fatalf("err = %v", err)
+	}
+}

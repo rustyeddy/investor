@@ -35,6 +35,14 @@ Adapters fail closed: truncated or incomplete provider output (Claude
 Choose a provider and model explicitly when constructing an adapter;
 supply credentials via `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` in the caller.
 
+`internal/model` implements `firm.Runtime` on top of `agents.Agent`. The
+configuration's `llm` (default) and `roles` (role name -> LLM) sections select
+the provider and model for each role; `cmd/investor` builds it for
+`run --runtime model`. It supplies the role authority, complete skill
+instructions and objective as trusted inputs, labels prior role outputs as
+untrusted evidence, applies a per-call timeout, and accepts only a strictly
+validated JSON artifact. A `blocked` or `rejected` artifact is returned with `firm.ErrStopped`: the engine keeps it as evidence, skips later agents, and ends the run `stopped` (no error, no approval). Investor assigns artifact IDs. Retries and usage/cost limits are not implemented yet.
+
 Adding an MCP transport should expose the same service operations, not create
 a parallel workflow engine. Never expose trading execution or tools merely
 because an AI provider or transport supports them. Paper-trading policy and
