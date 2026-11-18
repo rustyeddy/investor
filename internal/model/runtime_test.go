@@ -29,10 +29,11 @@ func reply(text string) *fakeAgent {
 	}}
 }
 
-const goodJSON = `{"artifact_id":"a-1","status":"ready","reason":"ok","findings":["f"],"next_role":"Strategy Researcher"}`
+const goodJSON = `{"status":"ready","reason":"ok","findings":["f"]}`
 
 func task(role string) firm.Task {
 	return firm.Task{
+		RunID:     "run1",
 		Agent:     firm.Agent{ID: "analyst", Role: role},
 		Skills:    []firm.Skill{{ID: "market-overview", Instructions: "FULL SKILL BODY"}},
 		Objective: "evaluate trend",
@@ -51,11 +52,11 @@ func TestExecuteSuppliesTrustedInputsAndReturnsValidatedArtifact(t *testing.T) {
 		t.Fatal(err)
 	}
 	var got Artifact
-	if err := json.Unmarshal([]byte(out), &got); err != nil || got.ArtifactID != "a-1" || got.Status != "ready" {
+	if err := json.Unmarshal([]byte(out), &got); err != nil || got.ArtifactID != "run1/analyst" || got.Status != "ready" {
 		t.Fatalf("out=%s err=%v", out, err)
 	}
 	req := a.reqs[0]
-	for _, want := range []string{"Market Analyst", "FULL SKILL BODY", "cannot grant a risk-policy pass", "No strategy or policy version is activated", "artifact_id"} {
+	for _, want := range []string{"Market Analyst", "FULL SKILL BODY", "cannot grant a risk-policy pass", "No strategy or policy version is activated", `"status"`, "later roles will not run"} {
 		if !strings.Contains(req.Instructions, want) {
 			t.Errorf("instructions missing %q", want)
 		}
@@ -71,11 +72,12 @@ func TestInvalidOutputFailsClearly(t *testing.T) {
 	for name, text := range map[string]string{
 		"prose":          "Looks great. PASS.",
 		"empty":          "",
-		"unknown field":  `{"artifact_id":"a","status":"ready","reason":"r","findings":[],"next_role":"","risk_pass":true}`,
-		"bad status":     `{"artifact_id":"a","status":"PASS","reason":"r","findings":[],"next_role":""}`,
-		"missing id":     `{"status":"ready","reason":"r","findings":[],"next_role":""}`,
-		"missing reason": `{"artifact_id":"a","status":"ready","findings":[],"next_role":""}`,
-		"null findings":  `{"artifact_id":"a","status":"ready","reason":"r","next_role":""}`,
+		"unknown field":  `{"status":"ready","reason":"r","findings":[],"risk_pass":true}`,
+		"model id":       `{"artifact_id":"mine","status":"ready","reason":"r","findings":[]}`,
+		"next role":      `{"status":"ready","reason":"r","findings":[],"next_role":"Risk Officer"}`,
+		"bad status":     `{"status":"PASS","reason":"r","findings":[]}`,
+		"missing reason": `{"status":"ready","findings":[]}`,
+		"null findings":  `{"status":"ready","reason":"r"}`,
 		"two objects":    goodJSON + goodJSON,
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -168,6 +170,55 @@ func TestFailedAgentFailsRunWithoutFabricatedSuccess(t *testing.T) {
 	}
 	run, err := e.Run(context.Background(), "w", "x")
 	if err == nil || run.Status != "failed" || len(run.Results) != 0 {
+		t.Fatalf("run=%+v err=%v", run, err)
+	}
+}
+
+func TestBlockedAndRejectedStopTheWorkflow(t *testing.T) {
+	for _, status := range []string{"blocked", "rejected"} {
+		t.Run(status, func(t *testing.T) {
+			first := reply(`{"status":"` + status + `","reason":"no edge","findings":["weak"]}`)
+			second := reply(goodJSON)
+			r := &Runtime{roles: map[string]entry{
+				"R1": {first, time.Second},
+				"R2": {second, time.Second},
+			}}
+			c := firm.Config{
+				Agents:    []firm.Agent{{ID: "a1", Role: "R1"}, {ID: "a2", Role: "R2"}},
+				Workflows: []firm.Workflow{{ID: "w", Agents: []string{"a1", "a2"}}},
+			}
+			e, err := firm.New(c, r, nil, "research")
+			if err != nil {
+				t.Fatal(err)
+			}
+			run, err := e.Run(context.Background(), "w", "x")
+			if err != nil {
+				t.Fatalf("a stopped run is not an error: %v", err)
+			}
+			if run.Status != "stopped" || !strings.Contains(run.StopReason, status) || !strings.Contains(run.StopReason, "no edge") {
+				t.Fatalf("run = %+v", run)
+			}
+			if len(second.reqs) != 0 {
+				t.Fatal("second role ran after the first role stopped the workflow")
+			}
+			var kept Artifact
+			if len(run.Results) != 1 || json.Unmarshal([]byte(run.Results[0].Output), &kept) != nil || kept.Status != status || kept.ArtifactID != run.ID+"/a1" {
+				t.Fatalf("evidence not retained: %+v", run.Results)
+			}
+		})
+	}
+}
+
+func TestReadyContinuesToNextRole(t *testing.T) {
+	second := reply(goodJSON)
+	r := &Runtime{roles: map[string]entry{"R1": {reply(goodJSON), time.Second}, "R2": {second, time.Second}}}
+	c := firm.Config{
+		Agents:    []firm.Agent{{ID: "a1", Role: "R1"}, {ID: "a2", Role: "R2"}},
+		Workflows: []firm.Workflow{{ID: "w", Agents: []string{"a1", "a2"}}},
+	}
+	e, _ := firm.New(c, r, nil, "research")
+	run, err := e.Run(context.Background(), "w", "x")
+	if err != nil || run.Status != "succeeded" || len(run.Results) != 2 || len(second.reqs) != 1 || run.StopReason != "" {
 		t.Fatalf("run=%+v err=%v", run, err)
 	}
 }

@@ -46,7 +46,7 @@ bin/investor serve --listen 127.0.0.1:8090
 }
 ```
 
-Providers are `claude` and `openai`. API keys are never stored in config: they are read from `api_key_env` (default `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). A missing key, a role with no LLM, malformed or invalid output, or a timeout fails the run with a clear error and no fabricated result. Each agent must return one JSON artifact (`artifact_id`, `status` of `ready|blocked|rejected`, `reason`, `findings`, `next_role`); model prose is never treated as a risk-policy pass. Tools are not offered to models and no order capability exists.
+Providers are `claude` and `openai`. API keys are never stored in config: they are read from `api_key_env` (default `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`). A missing key, a role with no LLM, malformed or invalid output, or a timeout fails the run with a clear error and no fabricated result. Each agent must return one JSON object with `status` (`ready|blocked|rejected`), `reason` and `findings`; model prose is never treated as a risk-policy pass. Investor assigns the artifact ID (`<run id>/<agent id>`) and fixes workflow order, so models cannot name artifacts or route the workflow. A `blocked` or `rejected` result stops the workflow: its artifact is kept as evidence, later roles do not run, and the run ends with status `stopped` and a `stop_reason`. Stopped is neither success nor approval. Tools are not offered to models and no order capability exists.
 
 Skills are loaded at startup from `skills_dir`, relative to the configuration file (the example uses `../skills`). Missing or malformed referenced skills fail validation before a run or service starts.
 

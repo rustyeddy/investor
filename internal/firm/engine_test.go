@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -111,5 +112,37 @@ func TestConfigValidation(t *testing.T) {
 	}
 	if _, err := Decode(strings.NewReader(`{"unexpected":true}`)); err == nil {
 		t.Fatal("accepted unknown field")
+	}
+}
+
+type stopRuntime struct{ calls []string }
+
+func (s *stopRuntime) Execute(_ context.Context, task Task, _ CallTool) (string, error) {
+	s.calls = append(s.calls, task.Agent.ID)
+	if task.Agent.ID == "a1" {
+		return "negative finding", fmt.Errorf("%w: rejected", ErrStopped)
+	}
+	return "ok", nil
+}
+
+func TestStoppedRunKeepsEvidenceAndSkipsLaterAgents(t *testing.T) {
+	c := Config{
+		Agents:    []Agent{{ID: "a1", Role: "R1"}, {ID: "a2", Role: "R2"}},
+		Workflows: []Workflow{{ID: "w", Agents: []string{"a1", "a2"}}},
+	}
+	rt := &stopRuntime{}
+	e, err := New(c, rt, nil, "research")
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := e.Run(context.Background(), "w", "x")
+	if err != nil || run.Status != "stopped" || run.Error != "" || !strings.Contains(run.StopReason, "agent a1") {
+		t.Fatalf("run=%+v err=%v", run, err)
+	}
+	if len(rt.calls) != 1 || len(run.Results) != 1 || run.Results[0].Output != "negative finding" || run.FinishedAt.IsZero() {
+		t.Fatalf("calls=%v results=%+v", rt.calls, run.Results)
+	}
+	if run.Results[0].AgentID != "a1" {
+		t.Fatalf("results = %+v", run.Results)
 	}
 }

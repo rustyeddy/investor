@@ -12,7 +12,15 @@ import (
 
 var ErrUnknownWorkflow = errors.New("unknown workflow")
 
+// ErrStopped is returned (wrapped) by a Runtime together with the agent's
+// output when the agent legitimately halts the workflow, for example a role
+// that reports its input blocked or rejected. The engine keeps that output as
+// evidence, runs no further agents, and ends the run with status "stopped".
+// A stopped run is not an approval and not a failure.
+var ErrStopped = errors.New("workflow stopped")
+
 type Task struct {
+	RunID     string   `json:"run_id"`
 	Agent     Agent    `json:"agent"`
 	Skills    []Skill  `json:"skills"`
 	Objective string   `json:"objective"`
@@ -34,6 +42,7 @@ type Run struct {
 	FinishedAt time.Time `json:"finished_at"`
 	Results    []Result  `json:"results"`
 	Error      string    `json:"error,omitempty"`
+	StopReason string    `json:"stop_reason,omitempty"`
 }
 
 type CallTool func(context.Context, string, json.RawMessage) (json.RawMessage, error)
@@ -114,6 +123,9 @@ func (e *Engine) Run(ctx context.Context, workflow, objective string) (run Run, 
 	defer func() {
 		run.FinishedAt = time.Now().UTC()
 		run.Status = "succeeded"
+		if run.StopReason != "" {
+			run.Status = "stopped"
+		}
 		if err != nil {
 			run.Status, run.Error = "failed", err.Error()
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -126,6 +138,7 @@ func (e *Engine) Run(ctx context.Context, workflow, objective string) (run Run, 
 			return run, err
 		}
 		task := Task{
+			RunID:     run.ID,
 			Agent:     agent,
 			Skills:    e.skillsFor(agent),
 			Objective: objective,
@@ -135,6 +148,11 @@ func (e *Engine) Run(ctx context.Context, workflow, objective string) (run Run, 
 		output, err = e.runtime.Execute(ctx, task, e.toolCaller(agent))
 		if err == nil {
 			err = ctx.Err()
+		}
+		if err != nil && errors.Is(err, ErrStopped) && ctx.Err() == nil {
+			run.Results = append(run.Results, Result{AgentID: agent.ID, Output: output})
+			run.StopReason = fmt.Sprintf("agent %s: %v", agent.ID, err)
+			return run, nil
 		}
 		if err != nil {
 			err = fmt.Errorf("agent %s: %w", agent.ID, err)
