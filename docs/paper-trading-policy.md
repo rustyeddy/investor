@@ -91,19 +91,28 @@ An agent can make trading decisions only as an *agent-discretion strategy*: an
 external strategy, run by Trader and separate from Investor, that reads bars and
 indicators, asks a model, and emits intents through the strategy interface.
 Trader sizes and admits those intents like any others (ADR-093). Rusty activates
-it like any strategy version. It is useful for trying out ideas, but its results
-are a different kind of evidence:
+it like any strategy version. Rusty's own discretionary trades enter the same way,
+through a local manual-intent strategy, never over REST.
 
-- it cannot be honestly backtested, because the model's training overlaps the
-  history, so only forward results count
-- each experiment states its hypothesis, the decision inputs the model is given,
-  its planned sample size and its end date before it starts
-- its results are journaled as `experiment` evidence and never pooled with
-  backtested strategy results; a promising experiment leads to a rule-based
-  version that can be backtested, not to wider activation of the experiment
+We have no edge yet, so Phase 1 is mainly experimentation on demo accounts:
+**journaling and evaluating experiments come before restrictions.** The minimum
+for every experiment, agent or manual:
 
-Investor may propose such an experiment and review its outcomes. It does not run
-the strategy and does not supply its intents.
+- a one-line hypothesis and a stop condition, written before the first trade
+- every intent tagged with its source (experiment ID, strategy version or
+  `manual`), so results can be attributed
+- where practical, its own demo account, so experiments don't share equity and
+  limits
+
+Agent and manual results count only forward, because they cannot be honestly
+backtested. Journal them as `experiment` evidence and compare them with
+backtested results knowingly, not as if they were the same kind of result. A
+promising experiment leads to a rule-based version that can be backtested.
+
+Investor may propose an experiment and review its outcomes. It does not run the
+strategy and does not supply its intents. The stricter requirements above
+(complete strategy rules, out-of-sample evidence) apply to recommending a
+strategy for activation as an edge, and they will tighten before real money.
 
 ## Outcomes, monitoring and incidents
 
