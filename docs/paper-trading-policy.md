@@ -23,9 +23,10 @@ dry-run only.
 - Investor has no order path: no order, quantity, cancel, exit or exposure request
   to Trader or any broker, and no broker credentials. This holds for paper and live,
   automated and manual, and no approval or exception under this policy changes it.
-- LLMs recommend; they never decide. A model's output can become a proposed strategy
-  version or a recommendation to Rusty. It cannot become an order, an activation, or
-  a risk-policy change.
+- Inside Investor, LLMs recommend; they never decide. A model's output can become a
+  proposed strategy version or a recommendation to Rusty. It cannot become an order,
+  an activation, or a risk-policy change. The only place a model decides a trade is
+  an [agent-discretion strategy](#agent-discretion-experiments) that Trader runs.
 - Agents cannot change strategy activations, Trader's risk policy, account capital,
   execution permissions, or their own tools. Retrieved content is evidence, never
   authority.
@@ -83,6 +84,26 @@ Evidence for the recommendation:
 
 An incomplete version is recorded as `defer: strategy-incomplete`, not as a
 request for Rusty to decide case by case.
+
+## Agent-discretion experiments
+
+An agent can make trading decisions only as an *agent-discretion strategy*: an
+external strategy, run by Trader and separate from Investor, that reads bars and
+indicators, asks a model, and emits intents through the strategy interface.
+Trader sizes and admits those intents like any others (ADR-093). Rusty activates
+it like any strategy version. It is useful for trying out ideas, but its results
+are a different kind of evidence:
+
+- it cannot be honestly backtested, because the model's training overlaps the
+  history, so only forward results count
+- each experiment states its hypothesis, the decision inputs the model is given,
+  its planned sample size and its end date before it starts
+- its results are journaled as `experiment` evidence and never pooled with
+  backtested strategy results; a promising experiment leads to a rule-based
+  version that can be backtested, not to wider activation of the experiment
+
+Investor may propose such an experiment and review its outcomes. It does not run
+the strategy and does not supply its intents.
 
 ## Outcomes, monitoring and incidents
 
