@@ -92,17 +92,19 @@ external strategy, run by Trader and separate from Investor, that reads bars and
 indicators, asks a model, and emits intents through the strategy interface.
 Trader sizes and admits those intents like any others (ADR-093). Rusty activates
 it like any strategy version. Rusty's own discretionary trades enter the same way,
-through a local manual-intent strategy, never over REST.
+through a manual-intent strategy driven by the `trader` CLI on the host, never over
+REST. A misbehaving strategy is stopped with Trader's halt, not with an opposing
+trade.
 
 We have no edge yet, so Phase 1 is mainly experimentation on demo accounts:
 **journaling and evaluating experiments come before restrictions.** The minimum
 for every experiment, agent or manual:
 
-- a one-line hypothesis and a stop condition, written before the first trade
-- every intent tagged with its source (experiment ID, strategy version or
-  `manual`), so results can be attributed
-- where practical, its own demo account, so experiments don't share equity and
-  limits
+- a thesis: a one-line hypothesis and a stop condition, written before the first
+  trade; no thesis, no trades
+- every intent labeled with its source (experiment ID, strategy version or
+  `manual`), and everything journaled, so results can be attributed
+- its own demo account, so each equity curve and analysis reflects one source
 
 Agent and manual results count only forward, because they cannot be honestly
 backtested. Journal them as `experiment` evidence and compare them with
