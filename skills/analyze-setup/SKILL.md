@@ -3,6 +3,12 @@ name: analyze-setup
 description: Develop a candidate into a bounded long or short proposal within a versioned strategy.
 ---
 
+> **Superseded in part (Trader ADR-093; #39, #40).** Investor sizes nothing,
+> reserves nothing and submits no orders; Trader is the only risk authority. Where
+> this document describes Investor-side sizing, risk admission, reservations, paper
+> orders or fills, follow [the paper-trading policy](../../docs/paper-trading-policy.md) instead. Do not implement
+> those parts.
+
 # Analyze Setup
 
 ## Required observations

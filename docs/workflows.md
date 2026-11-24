@@ -1,5 +1,11 @@
 # Phase 1 research and paper-trading workflows
 
+> **Superseded in part (Trader ADR-093; #39, #40).** Investor sizes nothing,
+> reserves nothing and submits no orders; Trader is the only risk authority. Where
+> this document describes Investor-side sizing, risk admission, reservations, paper
+> orders or fills, follow [the paper-trading policy](paper-trading-policy.md) instead. Do not implement
+> those parts.
+
 Status: design specification for [issue #4](https://github.com/rustyeddy/investor/issues/4).
 No scheduler, queue, model runtime, simulator or persistent journal is implemented
 by this document. The CLI sample remains a dry-run preview. Use the

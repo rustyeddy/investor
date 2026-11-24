@@ -1,5 +1,11 @@
 # Research journal and evidence contract
 
+> **Superseded in part (Trader ADR-093; #39, #40).** Investor sizes nothing,
+> reserves nothing and submits no orders; Trader is the only risk authority. Where
+> this document describes Investor-side sizing, risk admission, reservations, paper
+> orders or fills, follow [the paper-trading policy](paper-trading-policy.md) instead. Do not implement
+> those parts.
+
 Status: design for Phase 1. An append-only JSON-file journal records runs, steps and model calls (see "Phase 1 persistence and export"); paper execution is not implemented.
 The current program remains dry-run only. This contract belongs to Investor;
 Trader and Tulip may consume exports or future APIs but are not authoritative

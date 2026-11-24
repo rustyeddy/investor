@@ -22,8 +22,10 @@ opportunities, the recommendations that follow, and the research journal. Invest
 not implement or second-guess execution mechanics, sizing, risk limits, or data
 acquisition and cleaning; it uses Trader for them by reading market data and
 running backtests and studies. **Investor submits no orders, paper or live, and
-selects no specific trades**: trading decisions come only from strategy versions
-Trader runs, sizes and admits under its own risk policy (Trader ADR-093).
+has no authority to activate strategies or override risk**: it may research
+candidate trades and strategies, including agent-generated ones, but orders come
+only from strategy versions Trader runs, sizes and admits under its own risk
+policy (Trader ADR-093).
 
 - **Boundary:** Trader's REST API. Trader's operations and persisted datasets
   cross it: Investor reads data, runs backtests and studies, and reads orders,

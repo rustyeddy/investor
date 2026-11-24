@@ -12,9 +12,10 @@ in Git history. The rest of the repository's wording about paper orders is being
 corrected under [#40](https://github.com/rustyeddy/investor/issues/40); where it
 conflicts with this document, this document governs.
 
-**Investor submits no orders, paper or live, and selects no specific trades.**
-Trading decisions come only from strategy versions that Trader runs, sizes, admits
-and executes. Investor researches those strategies, recommends activation or
+**Investor submits no orders, paper or live, and has no authority to activate
+anything.** It may research candidate trades and strategies, including ones an
+agent generates, but they become orders only as strategy versions that Trader
+runs, sizes, admits and executes. Investor researches those strategies, recommends activation or
 retirement, and records outcomes it reads from Trader. The current Go program is
 dry-run only.
 
@@ -38,8 +39,8 @@ dry-run only.
 
 | Concern | Owner | Investor's part |
 | --- | --- | --- |
-| Strategy code (entries, stops, exits, duration, order mechanics) | Strategy repository, run by Trader (in-process or external gRPC, ADR-062) | Proposes and challenges versions; supplies evidence |
-| Backtests and studies, cost and fill models | Trader | Requests runs; records run IDs, data provenance and results |
+| Strategy code (entries, stops, exits, duration, order mechanics) | Strategy repository, run by Trader (in-process, or an independent strategy client over Trader's loopback TCP/JSON interface, [trader#723](https://github.com/rustyeddy/trader/pull/723)) | Proposes and challenges versions; supplies evidence |
+| Backtests and studies, cost and fill models | Trader. Remote strategy clients already run backtests; demo and live sessions come later | Requests runs; records run IDs, data provenance and results |
 | Position sizing, per-trade risk, aggregate, correlated, notional and margin limits, loss halts, freshness of marks | Trader's versioned risk policy (ADR-093) | None. Reads the risk decisions behind results it reviews |
 | Activating a strategy version on an account | Rusty, in Trader's configuration | Recommends, with evidence; cannot activate |
 | Orders, fills, positions, reconciliation | Trader (or the paper broker) | Reads and journals them as imported records |
