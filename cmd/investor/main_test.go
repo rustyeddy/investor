@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -290,5 +291,52 @@ func TestJournalDirFromConfigIsRelativeToConfigAndFlagOverrides(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(filepath.Dir(other), "never-created")); err == nil {
 		t.Fatal("validate/plan created a journal")
+	}
+}
+
+func TestBarsAndSnapshotReadFromTrader(t *testing.T) {
+	t.Setenv("TRADER_API_TOKEN", "tok")
+	var gotAuth, gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth, gotQuery = r.Header.Get("Authorization"), r.URL.RawQuery
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"error":{"code":"no_data","message":"none"},"coverage":{"complete":false}}`))
+	}))
+	defer srv.Close()
+	path := configWith(t, map[string]any{"trader": map[string]any{"base_url": srv.URL, "watchlist": []string{"EURUSD"}}})
+
+	var out, errOut bytes.Buffer
+	err := execute(context.Background(), []string{"bars", "--config", path, "--instrument", "eurusd", "--interval", "h1", "--from", "2024-01-02", "--to", "2024-01-03", "--strict"}, &out, &errOut)
+	if err == nil || !strings.Contains(err.Error(), "no_data") || out.Len() != 0 {
+		t.Fatalf("stdout=%q err=%v", out.String(), err)
+	}
+	for _, want := range []string{"instrument=EURUSD", "interval=h1", "from=2024-01-02T00%3A00%3A00Z", "partial=false"} {
+		if !strings.Contains(gotQuery, want) {
+			t.Errorf("query %q lacks %q", gotQuery, want)
+		}
+	}
+	if gotAuth != "Bearer tok" {
+		t.Errorf("Authorization = %q", gotAuth)
+	}
+
+	// A snapshot reports each entry's outcome instead of failing as a whole.
+	out.Reset()
+	if err := execute(context.Background(), []string{"snapshot", "--config", path}, &out, &errOut); err != nil {
+		t.Fatal(err)
+	}
+	var snap struct {
+		Entries []struct{ Instrument, Interval, Error string }
+	}
+	if err := json.Unmarshal(out.Bytes(), &snap); err != nil || len(snap.Entries) != 2 || !strings.Contains(snap.Entries[0].Error, "no_data") {
+		t.Fatalf("snapshot %q: %v", out.String(), err)
+	}
+
+	for name, args := range map[string][]string{
+		"bad time":     {"bars", "--config", path, "--instrument", "EURUSD", "--from", "soon", "--to", "2024-01-03"},
+		"no watchlist": {"snapshot", "--config", configWith(t, map[string]any{"trader": nil})},
+	} {
+		if err := execute(context.Background(), args, &out, &errOut); err == nil {
+			t.Errorf("%s: no error", name)
+		}
 	}
 }
