@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -24,7 +25,7 @@ func testSpec() Spec {
 		Holdout:   day(2023, 1, 1),
 		Strategy:  Strategy{Executable: "emax", Trader: "127.0.0.1:9100"},
 		Grid:      Grid{Short: []int{2, 5}, Long: []int{4, 10}, Stop: []string{"0.01"}},
-		Selection: Selection{Metric: MetricNetReturn, MinTrades: 5}, RunTimeout: Duration(time.Minute),
+		Selection: Selection{Metric: MetricNetReturn, MinTrades: 5}, RunTimeout: Duration(time.Minute), ExpectedInitialBalance: "10000",
 	}
 }
 
@@ -44,7 +45,7 @@ func (f *fakeRunner) Run(_ context.Context, s RunSpec) Run {
 		return r
 	}
 	r.Outcome = &Outcome{RunID: fmt.Sprintf("run-%d-%d-%s", len(f.calls), s.Params.Short, s.Phase), Status: StatusCompleted,
-		Summary: &Summary{InitialBalance: "10000.00", Equity: eq, Trades: f.trades}}
+		Summary: &Summary{InitialBalance: Money{Amount: "10000"}, Equity: Money{Amount: eq}, Trades: f.trades}}
 	return r
 }
 
@@ -88,8 +89,8 @@ func TestExampleSpecLoads(t *testing.T) {
 }
 
 func TestParseOutput(t *testing.T) {
-	o, err := ParseOutput("run r-1: completed\n{\"trades\":7,\"equity\":\"10100.00\",\"initial_balance\":\"10000.00\"}\n")
-	if err != nil || o.RunID != "r-1" || o.Status != "completed" || o.Summary.Trades != 7 || len(o.Raw) == 0 {
+	o, err := ParseOutput("run r-1: completed\n" + realSummary + "\n")
+	if err != nil || o.RunID != "r-1" || o.Status != "completed" || o.Summary.Trades != 107 || o.Summary.Equity.Amount != "9803.04774" || o.Summary.InitialBalance.Currency != "USD" || len(o.Raw) == 0 {
 		t.Fatalf("%+v %v", o, err)
 	}
 	o, err = ParseOutput("run r-2: failed\nerror: no data\n")
@@ -107,7 +108,7 @@ func TestChooseByScoreThenTieBreak(t *testing.T) {
 	sel := Selection{MinTrades: 5}
 	mk := func(p Params, eq string, trades int) Scored {
 		return Score(Run{Params: p, Outcome: &Outcome{RunID: "x", Status: StatusCompleted,
-			Summary: &Summary{InitialBalance: "10000.00 USD", Equity: eq + " USD", Trades: trades}}}, sel)
+			Summary: &Summary{InitialBalance: Money{"10000.00", "USD"}, Equity: Money{eq, "USD"}, Trades: trades}}}, sel)
 	}
 	scored := []Scored{
 		mk(Params{5, 10, "0.01"}, "10500.00", 9),
@@ -132,9 +133,9 @@ func TestScoreNeverTreatsFailureAsZero(t *testing.T) {
 	for name, r := range map[string]Run{
 		"launch error": {Err: "boom"},
 		"failed run":   {Outcome: &Outcome{Status: "failed", Error: "x"}},
-		"zero balance": {Outcome: &Outcome{Status: StatusCompleted, Summary: &Summary{InitialBalance: "0", Equity: "1", Trades: 3}}},
-		"bad amount":   {Outcome: &Outcome{Status: StatusCompleted, Summary: &Summary{InitialBalance: "10000", Equity: "?", Trades: 3}}},
-		"exit status":  {ExitCode: 1, Outcome: &Outcome{Status: StatusCompleted, Summary: &Summary{InitialBalance: "10000", Equity: "10000", Trades: 3}}},
+		"zero balance": {Outcome: &Outcome{Status: StatusCompleted, Summary: &Summary{InitialBalance: Money{Amount: "0"}, Equity: Money{Amount: "1"}, Trades: 3}}},
+		"bad amount":   {Outcome: &Outcome{Status: StatusCompleted, Summary: &Summary{InitialBalance: Money{Amount: "10000"}, Equity: Money{Amount: "?"}, Trades: 3}}},
+		"exit status":  {ExitCode: 1, Outcome: &Outcome{Status: StatusCompleted, Summary: &Summary{InitialBalance: Money{Amount: "10000"}, Equity: Money{Amount: "10000"}, Trades: 3}}},
 	} {
 		if s := Score(r, sel); s.Eligible || s.Score != "" || s.Reason == "" {
 			t.Errorf("%s: %+v", name, s)
@@ -199,7 +200,7 @@ type phaseRunner struct{ fakeRunner }
 func (p *phaseRunner) Run(ctx context.Context, s RunSpec) Run {
 	r := p.fakeRunner.Run(ctx, s)
 	if s.Phase == PhaseTest {
-		r.Outcome.Summary.Equity = "99999.00"
+		r.Outcome.Summary.Equity = Money{Amount: "99999.00"}
 	}
 	return r
 }
@@ -295,7 +296,7 @@ func TestReportDeterministicAndNotOverwritten(t *testing.T) {
 	}
 	data, _ := os.ReadFile(path)
 	var back Report
-	if err := json.Unmarshal(data, &back); err != nil || back.Provenance["trader_build"] != Unknown {
+	if err := json.Unmarshal(data, &back); err != nil || !strings.HasPrefix(back.Provenance["trader_build"], Unknown) {
 		t.Errorf("round trip: %v %v", err, back.Provenance)
 	}
 	if s := run().Summary(); !strings.Contains(s, "selected short=2 long=10") || !strings.Contains(s, "oos run=") {
@@ -325,7 +326,7 @@ func TestProcessArgsAndFailures(t *testing.T) {
 	// Success path through a real process.
 	os.WriteFile(script, []byte(`#!/bin/sh
 echo 'run r-10: completed'
-echo '{"trades":6,"initial_balance":"10000.00","equity":"10200.00"}'
+echo '{"trades":6,"initial_balance":{"amount":"10000"},"equity":{"amount":"10200.00"}}'
 `), 0o755)
 	if r := p.Run(context.Background(), RunSpec{}); !r.OK() || r.Outcome.RunID != "r-10" {
 		t.Errorf("good run: %+v", r)
@@ -341,5 +342,65 @@ echo '{"trades":6,"initial_balance":"10000.00","equity":"10200.00"}'
 	p.Timeout = 100 * time.Millisecond
 	if r := p.Run(context.Background(), RunSpec{}); r.OK() || !strings.Contains(r.Err, "did not finish") {
 		t.Errorf("timeout: %+v", r)
+	}
+}
+
+// realSummary is the summary line `emax` printed against a live `trader serve`
+// (2014-01-01 to 2014-04-01, EURUSD h1, short 5, long 20, stop 0.01).
+const realSummary = `{"strategy":"remote","account":"sim123","initial_balance":{"amount":"10000","currency":"USD"},"bars":1514,"orders":{"submitted":323,"filled":215,"rejected":0,"cancelled":107,"pending":1},"trades":107,"wins":29,"losses":78,"break_even":0,"realized":{"amount":"-212.39832","currency":"USD"},"unrealized":{"amount":"15.44606","currency":"USD"},"balance":{"amount":"9787.60168","currency":"USD"},"equity":{"amount":"9803.04774","currency":"USD"},"open":[{"instrument":"EURUSD","direction":"long","units":"7118","entry_price":"1.37522","mark_price":"1.37739"}]}`
+
+func TestValidateStopAndBalance(t *testing.T) {
+	for name, mod := range map[string]func(*Spec){
+		"zero stop":    func(s *Spec) { s.Grid.Stop = []string{"0"} },
+		"stop of one":  func(s *Spec) { s.Grid.Stop = []string{"1"} },
+		"percent text": func(s *Spec) { s.Grid.Stop = []string{"1%"} },
+		"no balance":   func(s *Spec) { s.ExpectedInitialBalance = "" },
+		"bad tick":     func(s *Spec) { s.Strategy.Tick = "-1" },
+	} {
+		s := testSpec()
+		mod(&s)
+		if s.Validate() == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestBalanceMismatchStopsBeforeOOS(t *testing.T) {
+	spec := testSpec()
+	spec.ExpectedInitialBalance = "20000" // The fake runner reports 10000.
+	f := &fakeRunner{trades: 9, equity: map[Params]string{{2, 4, "0.01"}: "10100.00"}}
+	rep, err := Experiment{Spec: spec, Runner: f}.Execute(context.Background())
+	if err == nil || rep.Status != StatusMismatch || rep.OOS != nil || rep.Provenance["trader_initial_balance"] != "10000" {
+		t.Fatalf("%s %v %v", rep.Status, err, rep.Provenance)
+	}
+	for _, c := range f.calls {
+		if c.Phase == PhaseTest {
+			t.Error("OOS ran despite a settings mismatch")
+		}
+	}
+}
+
+func TestGitIdentity(t *testing.T) {
+	dir := t.TempDir()
+	if id := GitIdentity(dir); !strings.HasPrefix(id, Unknown) {
+		t.Errorf("non-repo: %q", id)
+	}
+	git := func(a ...string) {
+		t.Helper()
+		if out, err := exec.Command("git", append([]string{"-C", dir, "-c", "user.name=t", "-c", "user.email=t@t"}, a...)...).CombinedOutput(); err != nil {
+			t.Skipf("git unavailable: %v %s", err, out)
+		}
+	}
+	git("init", "-q")
+	os.WriteFile(filepath.Join(dir, "f"), []byte("x"), 0o644)
+	git("add", "f")
+	git("commit", "-q", "-m", "c")
+	clean := GitIdentity(dir)
+	if len(clean) != 40 {
+		t.Fatalf("clean: %q", clean)
+	}
+	os.WriteFile(filepath.Join(dir, "f"), []byte("y"), 0o644)
+	if id := GitIdentity(dir); id != clean+"+dirty" {
+		t.Errorf("dirty: %q", id)
 	}
 }

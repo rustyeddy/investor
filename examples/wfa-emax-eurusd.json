@@ -8,5 +8,8 @@
   "strategy": {"executable": "../strategies/bin/emax", "trader": "127.0.0.1:9100", "tick": "0.00001"},
   "grid": {"short": [5, 10], "long": [20, 50], "stop": ["0.005", "0.01"]},
   "selection": {"metric": "net_return", "min_trades": 30},
+  "expected_initial_balance": "10000",
+  "trader_repo": "../trader",
+  "strategies_repo": "../strategies",
   "run_timeout": "30m"
 }

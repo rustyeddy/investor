@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/big"
 	"os"
 	"strings"
 	"time"
@@ -61,6 +62,14 @@ type Spec struct {
 	Grid       Grid      `json:"grid"`
 	Selection  Selection `json:"selection"`
 	RunTimeout Duration  `json:"run_timeout"`
+	// ExpectedInitialBalance is the starting capital the experiment is meant to
+	// run with, as a decimal. Trader reports what it used; a difference stops the
+	// experiment before the out-of-sample run.
+	ExpectedInitialBalance string `json:"expected_initial_balance"`
+	// TraderRepo and StrategiesRepo are the checkouts the binaries were built
+	// from; their git commits go in the report.
+	TraderRepo     string `json:"trader_repo,omitempty"`
+	StrategiesRepo string `json:"strategies_repo,omitempty"`
 }
 
 // Duration is a time.Duration written as a string such as "10m".
@@ -136,6 +145,21 @@ func (s Spec) Validate() error {
 	}
 	if s.Selection.MinTrades < 1 {
 		bad("selection.min_trades must be at least 1")
+	}
+	if r, err := decimal(s.ExpectedInitialBalance); err != nil || r.Sign() <= 0 {
+		bad("expected_initial_balance %q must be a positive decimal", s.ExpectedInitialBalance)
+	}
+	if s.Strategy.Tick != "" {
+		if r, ok := new(big.Rat).SetString(s.Strategy.Tick); !ok || r.Sign() <= 0 {
+			bad("strategy.tick %q must be a positive decimal", s.Strategy.Tick)
+		}
+	}
+	for _, c := range s.Configs() {
+		// EMAX accepts a stop that is a fraction of the price: 0 < stop < 1. This is
+		// the price distance of the stop, not Trader's per-trade risk.
+		if r, ok := new(big.Rat).SetString(c.Stop); !ok || r.Sign() <= 0 || r.Cmp(big.NewRat(1, 1)) >= 0 {
+			bad("grid stop %q must be a decimal fraction of the price, above 0 and below 1", c.Stop)
+		}
 	}
 	if s.RunTimeout <= 0 {
 		bad("run_timeout is required")

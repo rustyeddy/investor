@@ -9,17 +9,42 @@ import (
 // Run statuses reported by Trader.
 const StatusCompleted = "completed"
 
+// Money is an amount as Trader sends it: {"amount": "10000", "currency": "USD"}.
+// A bare string such as "10000 USD" is also read.
+type Money struct {
+	Amount   string `json:"amount"`
+	Currency string `json:"currency,omitempty"`
+}
+
+func (m *Money) UnmarshalJSON(b []byte) error {
+	var s string
+	if json.Unmarshal(b, &s) == nil {
+		f := strings.Fields(s)
+		if len(f) == 0 || len(f) > 2 {
+			return fmt.Errorf("bad money %q", s)
+		}
+		*m = Money{Amount: f[0]}
+		if len(f) == 2 {
+			m.Currency = f[1]
+		}
+		return nil
+	}
+	type plain Money
+	return json.Unmarshal(b, (*plain)(m))
+}
+
 // Summary is the part of Trader's run summary that selection reads. Money
 // values are kept as the decimal strings Trader sent.
 type Summary struct {
-	InitialBalance string `json:"initial_balance"`
+	Account        string `json:"account"`
+	InitialBalance Money  `json:"initial_balance"`
 	Bars           int    `json:"bars"`
 	Trades         int    `json:"trades"`
 	Wins           int    `json:"wins"`
 	Losses         int    `json:"losses"`
-	Realized       string `json:"realized"`
-	Balance        string `json:"balance"`
-	Equity         string `json:"equity"`
+	Realized       Money  `json:"realized"`
+	Balance        Money  `json:"balance"`
+	Equity         Money  `json:"equity"`
 }
 
 // Outcome is what one strategy process reported.

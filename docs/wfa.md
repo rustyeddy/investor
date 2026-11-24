@@ -47,17 +47,43 @@ the OOS run, and limitations. Provenance Investor cannot obtain yet (Trader and
 strategy builds, risk configuration) is the string `unknown`. An existing report is
 never overwritten; reruns need a new `id`. A short summary is printed.
 
+## Stop distance versus risk
+
+EMAX's `stop` is a **price-distance stop**: a fraction of the entry price, so
+`0.01` is 1% of the price. It is not Trader's per-trade risk (1% of equity), which
+Trader uses to size the position from that stop distance. Validation requires
+every grid stop to be a decimal above 0 and below 1.
+
+## Effective Trader settings and build identity
+
+Trader's run summary carries the starting balance it used. The spec's
+`expected_initial_balance` is compared with it on every run; a difference stops the
+experiment (`settings_mismatch`) before the out-of-sample run, and the observed
+value is recorded. Trader exposes no per-trade risk setting, so the report records
+`trader_risk_per_trade` as unknown rather than assuming 1%. That needs something
+from Trader (see #42).
+
+`trader_repo` and `strategies_repo` name the checkouts; the report records their
+HEAD commits, with `+dirty` for uncommitted changes. This is the checkout, not
+the binary, so build the binaries from those checkouts first.
+
 ## Reproduce
 
 Adjacent checkouts: `../trader`, `../strategies`, `../investor`.
 
 ```sh
 (cd ../strategies && go build -o bin/emax ./cmd/emax)
-(cd ../trader && go build -o bin/trader ./cmd/trader && ./bin/trader serve)   # another terminal; needs the canonical EURUSD H1 data
+(cd ../trader && go build -o bin/trader ./cmd/trader && ./bin/trader serve)   # another terminal; needs the canonical data under /srv/data (--data-root)
 make build
 ./bin/investor wfa run --spec examples/wfa-emax-eurusd.json --out wfa-reports
 ```
 
 The preflight needs Trader's HTTP API (`trader.base_url` in the config file or
-`--trader`, and `TRADER_API_TOKEN` if required). The exact Trader serve flags and a
-real run have not been recorded yet; see the open questions on #42.
+`--trader`, and `TRADER_API_TOKEN` if required). Use `--strategy-listen` and `--listen` ports that match
+`strategy.trader` in the spec and `trader.base_url`.
+
+Smoke-tested on 2026-11-23 with Trader `6f4c276`: a single run
+(`emax -trader 127.0.0.1:19100 -instrument EURUSD -interval h1 -from 2014-01-01 -to 2014-04-01 -short 5 -long 20 -stop 0.01`)
+exited 0 and printed `run <RunID>: completed` and a one-line JSON summary in which
+money values are `{"amount","currency"}` objects. The full grid and one OOS run
+then completed in about 13 seconds.

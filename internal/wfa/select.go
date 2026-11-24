@@ -44,10 +44,10 @@ func Score(r Run, sel Selection) Scored {
 		s.Reason = fmt.Sprintf("%d trades, fewer than the minimum %d", sum.Trades, sel.MinTrades)
 		return s
 	}
-	init, err1 := decimal(sum.InitialBalance)
-	eq, err2 := decimal(sum.Equity)
+	init, err1 := decimal(sum.InitialBalance.Amount)
+	eq, err2 := decimal(sum.Equity.Amount)
 	if err1 != nil || err2 != nil {
-		s.Reason = fmt.Sprintf("unreadable summary amounts: %q, %q", sum.InitialBalance, sum.Equity)
+		s.Reason = fmt.Sprintf("unreadable summary amounts: %q, %q", sum.InitialBalance.Amount, sum.Equity.Amount)
 		return s
 	}
 	if init.Sign() <= 0 {
