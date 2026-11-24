@@ -10,6 +10,7 @@
   "grid": {"short": [5, 10], "long": [20, 50], "stop": ["0.005", "0.01"]},
   "selection": {"metric": "net_return", "min_trades": 30},
   "expected_initial_balance": "10000",
+  "expected_currency": "USD",
   "trader_repo": "../trader",
   "strategies_repo": "../strategies",
   "run_timeout": "30m"

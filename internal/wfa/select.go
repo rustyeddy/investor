@@ -44,6 +44,10 @@ func Score(r Run, sel Selection) Scored {
 		s.Reason = fmt.Sprintf("%d trades, fewer than the minimum %d", sum.Trades, sel.MinTrades)
 		return s
 	}
+	if a, b := sum.InitialBalance.Currency, sum.Equity.Currency; a != "" && b != "" && a != b {
+		s.Reason = fmt.Sprintf("initial balance is in %s but equity in %s", a, b)
+		return s
+	}
 	init, err1 := decimal(sum.InitialBalance.Amount)
 	eq, err2 := decimal(sum.Equity.Amount)
 	if err1 != nil || err2 != nil {

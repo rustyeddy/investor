@@ -124,7 +124,7 @@ func (e Experiment) Execute(ctx context.Context) (Report, error) {
 		rep.Scores = append(rep.Scores, Score(run, sp.Selection))
 	}
 
-	if bad := rep.checkBalance(rep.Training, sp.ExpectedInitialBalance); bad != "" {
+	if bad := rep.checkBalance(rep.Training, sp.ExpectedInitialBalance, sp.ExpectedCurrency); bad != "" {
 		rep.Status, rep.Rationale = StatusMismatch, bad
 		return rep, errors.New(bad)
 	}
@@ -146,7 +146,7 @@ func (e Experiment) Execute(ctx context.Context) (Report, error) {
 	}
 	oos := e.Runner.Run(ctx, RunSpec{Phase: PhaseTest, Params: chosen.Params, Window: sp.Test})
 	rep.OOS = &oos
-	if bad := rep.checkBalance([]Run{oos}, sp.ExpectedInitialBalance); bad != "" {
+	if bad := rep.checkBalance([]Run{oos}, sp.ExpectedInitialBalance, sp.ExpectedCurrency); bad != "" {
 		rep.Status, rep.Rationale = StatusMismatch, bad
 		return rep, errors.New(bad)
 	}
@@ -207,8 +207,8 @@ func (e Experiment) identify(dir string) string {
 }
 
 // checkBalance records the starting balance Trader reported and returns a
-// message if any run used a different one. Trader's settings are not assumed.
-func (r *Report) checkBalance(runs []Run, want string) string {
+// message if any run used a different balance or currency. Trader's settings are not assumed.
+func (r *Report) checkBalance(runs []Run, want, currency string) string {
 	wantRat, _ := decimal(want)
 	for _, run := range runs {
 		if run.Outcome == nil || run.Outcome.Summary == nil {
@@ -216,6 +216,11 @@ func (r *Report) checkBalance(runs []Run, want string) string {
 		}
 		m := run.Outcome.Summary.InitialBalance
 		r.Provenance["trader_initial_balance"] = strings.TrimSpace(m.Amount + " " + m.Currency)
+		sum := run.Outcome.Summary
+		if m.Currency != currency || sum.Equity.Currency != currency {
+			return fmt.Sprintf("Trader ran %s/%s in %q (equity %q), expected %s; results are not comparable with the intended experiment",
+				run.Phase, run.Outcome.RunID, m.Currency, sum.Equity.Currency, currency)
+		}
 		got, err := decimal(m.Amount)
 		if err != nil || got.Cmp(wantRat) != 0 {
 			return fmt.Sprintf("Trader ran %s/%s with initial balance %q, expected %s; results are not comparable with the intended experiment",

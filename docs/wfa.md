@@ -57,7 +57,7 @@ every grid stop to be a decimal above 0 and below 1.
 ## Effective Trader settings and build identity
 
 Trader's run summary carries the starting balance it used. The spec's
-`expected_initial_balance` is compared with it on every run; a difference stops the
+`expected_initial_balance` and `expected_currency` are compared with it on every run (the equity currency too); a difference stops the
 experiment (`settings_mismatch`) before the out-of-sample run, and the observed
 value is recorded. Trader exposes no per-trade risk setting, so the report records
 `trader_risk_per_trade` as unknown rather than assuming 1%. That needs something

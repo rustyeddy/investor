@@ -26,7 +26,7 @@ func testSpec() Spec {
 		TraderAPI: TraderAPI{BaseURL: "http://127.0.0.1:8080"},
 		Strategy:  Strategy{Executable: "emax", Trader: "127.0.0.1:9100"},
 		Grid:      Grid{Short: []int{2, 5}, Long: []int{4, 10}, Stop: []string{"0.01"}},
-		Selection: Selection{Metric: MetricNetReturn, MinTrades: 5}, RunTimeout: Duration(time.Minute), ExpectedInitialBalance: "10000",
+		Selection: Selection{Metric: MetricNetReturn, MinTrades: 5}, RunTimeout: Duration(time.Minute), ExpectedInitialBalance: "10000", ExpectedCurrency: "USD",
 	}
 }
 
@@ -46,7 +46,7 @@ func (f *fakeRunner) Run(_ context.Context, s RunSpec) Run {
 		return r
 	}
 	r.Outcome = &Outcome{RunID: fmt.Sprintf("run-%d-%d-%s", len(f.calls), s.Params.Short, s.Phase), Status: StatusCompleted,
-		Summary: &Summary{InitialBalance: Money{Amount: "10000"}, Equity: Money{Amount: eq}, Trades: f.trades}}
+		Summary: &Summary{InitialBalance: Money{"10000", "USD"}, Equity: Money{eq, "USD"}, Trades: f.trades}}
 	return r
 }
 
@@ -132,11 +132,12 @@ func TestChooseByScoreThenTieBreak(t *testing.T) {
 func TestScoreNeverTreatsFailureAsZero(t *testing.T) {
 	sel := Selection{MinTrades: 1}
 	for name, r := range map[string]Run{
-		"launch error": {Err: "boom"},
-		"failed run":   {Outcome: &Outcome{Status: "failed", Error: "x"}},
-		"zero balance": {Outcome: &Outcome{Status: StatusCompleted, Summary: &Summary{InitialBalance: Money{Amount: "0"}, Equity: Money{Amount: "1"}, Trades: 3}}},
-		"bad amount":   {Outcome: &Outcome{Status: StatusCompleted, Summary: &Summary{InitialBalance: Money{Amount: "10000"}, Equity: Money{Amount: "?"}, Trades: 3}}},
-		"exit status":  {ExitCode: 1, Outcome: &Outcome{Status: StatusCompleted, Summary: &Summary{InitialBalance: Money{Amount: "10000"}, Equity: Money{Amount: "10000"}, Trades: 3}}},
+		"launch error":   {Err: "boom"},
+		"failed run":     {Outcome: &Outcome{Status: "failed", Error: "x"}},
+		"zero balance":   {Outcome: &Outcome{Status: StatusCompleted, Summary: &Summary{InitialBalance: Money{Amount: "0"}, Equity: Money{Amount: "1"}, Trades: 3}}},
+		"bad amount":     {Outcome: &Outcome{Status: StatusCompleted, Summary: &Summary{InitialBalance: Money{Amount: "10000"}, Equity: Money{Amount: "?"}, Trades: 3}}},
+		"mixed currency": {Outcome: &Outcome{Status: StatusCompleted, Summary: &Summary{InitialBalance: Money{"10000", "USD"}, Equity: Money{"10100", "EUR"}, Trades: 3}}},
+		"exit status":    {ExitCode: 1, Outcome: &Outcome{Status: StatusCompleted, Summary: &Summary{InitialBalance: Money{Amount: "10000"}, Equity: Money{Amount: "10000"}, Trades: 3}}},
 	} {
 		if s := Score(r, sel); s.Eligible || s.Score != "" || s.Reason == "" {
 			t.Errorf("%s: %+v", name, s)
@@ -201,7 +202,7 @@ type phaseRunner struct{ fakeRunner }
 func (p *phaseRunner) Run(ctx context.Context, s RunSpec) Run {
 	r := p.fakeRunner.Run(ctx, s)
 	if s.Phase == PhaseTest {
-		r.Outcome.Summary.Equity = Money{Amount: "99999.00"}
+		r.Outcome.Summary.Equity = Money{"99999.00", "USD"}
 	}
 	return r
 }
@@ -356,6 +357,7 @@ func TestValidateStopAndBalance(t *testing.T) {
 		"stop of one":  func(s *Spec) { s.Grid.Stop = []string{"1"} },
 		"percent text": func(s *Spec) { s.Grid.Stop = []string{"1%"} },
 		"no balance":   func(s *Spec) { s.ExpectedInitialBalance = "" },
+		"no currency":  func(s *Spec) { s.ExpectedCurrency = "" },
 		"bad tick":     func(s *Spec) { s.Strategy.Tick = "-1" },
 	} {
 		s := testSpec()
@@ -371,7 +373,7 @@ func TestBalanceMismatchStopsBeforeOOS(t *testing.T) {
 	spec.ExpectedInitialBalance = "20000" // The fake runner reports 10000.
 	f := &fakeRunner{trades: 9, equity: map[Params]string{{2, 4, "0.01"}: "10100.00"}}
 	rep, err := Experiment{Spec: spec, Runner: f}.Execute(context.Background())
-	if err == nil || rep.Status != StatusMismatch || rep.OOS != nil || rep.Provenance["trader_initial_balance"] != "10000" {
+	if err == nil || rep.Status != StatusMismatch || rep.OOS != nil || rep.Provenance["trader_initial_balance"] != "10000 USD" {
 		t.Fatalf("%s %v %v", rep.Status, err, rep.Provenance)
 	}
 	for _, c := range f.calls {
@@ -421,5 +423,15 @@ func TestSourceFromSpec(t *testing.T) {
 	s.TraderAPI = TraderAPI{}
 	if _, err := s.Source("", env); err == nil {
 		t.Error("no URL accepted")
+	}
+}
+
+func TestCurrencyMismatchStopsBeforeOOS(t *testing.T) {
+	spec := testSpec()
+	spec.ExpectedCurrency = "EUR" // The fake runner reports USD.
+	f := &fakeRunner{trades: 9, equity: map[Params]string{{2, 4, "0.01"}: "10100.00"}}
+	rep, err := Experiment{Spec: spec, Runner: f}.Execute(context.Background())
+	if err == nil || rep.Status != StatusMismatch || rep.OOS != nil {
+		t.Fatalf("%s %v", rep.Status, err)
 	}
 }

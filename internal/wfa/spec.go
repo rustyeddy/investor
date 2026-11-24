@@ -75,6 +75,8 @@ type Spec struct {
 	// run with, as a decimal. Trader reports what it used; a difference stops the
 	// experiment before the out-of-sample run.
 	ExpectedInitialBalance string `json:"expected_initial_balance"`
+	// ExpectedCurrency is the account currency of the experiment, such as USD.
+	ExpectedCurrency string `json:"expected_currency"`
 	// TraderRepo and StrategiesRepo are the checkouts the binaries were built
 	// from; their git commits go in the report.
 	TraderRepo     string `json:"trader_repo,omitempty"`
@@ -157,6 +159,9 @@ func (s Spec) Validate() error {
 	}
 	if r, err := decimal(s.ExpectedInitialBalance); err != nil || r.Sign() <= 0 {
 		bad("expected_initial_balance %q must be a positive decimal", s.ExpectedInitialBalance)
+	}
+	if s.ExpectedCurrency == "" {
+		bad("expected_currency is required (e.g. USD)")
 	}
 	if s.Strategy.Tick != "" {
 		if r, ok := new(big.Rat).SetString(s.Strategy.Tick); !ok || r.Sign() <= 0 {
