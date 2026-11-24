@@ -340,3 +340,13 @@ func TestBarsAndSnapshotReadFromTrader(t *testing.T) {
 		}
 	}
 }
+
+func TestWFARunRequiresSpec(t *testing.T) {
+	var out, errOut bytes.Buffer
+	if err := execute(context.Background(), []string{"wfa", "run"}, &out, &errOut); err == nil {
+		t.Error("ran without --spec")
+	}
+	if err := execute(context.Background(), []string{"wfa", "run", "--spec", "no-such-file.json"}, &out, &errOut); err == nil {
+		t.Error("ran with a missing spec")
+	}
+}
