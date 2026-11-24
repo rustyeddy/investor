@@ -67,6 +67,14 @@ from Trader (see #42).
 HEAD commits, with `+dirty` for uncommitted changes. This is the checkout, not
 the binary, so build the binaries from those checkouts first.
 
+## Where official results go
+
+Official reports are recorded in the Trading repository, `/srv/trading/backtests`,
+by passing it as `--out`. That is only a directory: Investor has no dependency on
+the Trading repository, writes nothing else there, and never overwrites a report.
+Scratch and test runs should use another `--out`. Committing a report there is a
+separate step.
+
 ## Reproduce
 
 Adjacent checkouts: `../trader`, `../strategies`, `../investor`.
@@ -75,7 +83,7 @@ Adjacent checkouts: `../trader`, `../strategies`, `../investor`.
 (cd ../strategies && go build -o bin/emax ./cmd/emax)
 (cd ../trader && go build -o bin/trader ./cmd/trader && ./bin/trader serve)   # another terminal; needs the canonical data under /srv/data (--data-root)
 make build
-./bin/investor wfa run --spec examples/wfa-emax-eurusd.json --out wfa-reports
+./bin/investor wfa run --spec examples/wfa-emax-eurusd.json --out /srv/trading/backtests
 ```
 
 The preflight needs Trader's HTTP API: `trader_api.base_url` in the spec (or
