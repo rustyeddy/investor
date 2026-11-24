@@ -171,11 +171,14 @@ func TestClientErrors(t *testing.T) {
 func TestClientRejectsBadResponses(t *testing.T) {
 	late := serverBar(bar(t, 5))
 	for name, page := range map[string]map[string]any{
-		"look-ahead":  {"bars": []any{late}, "coverage": Coverage{Complete: true}},
-		"no coverage": {"bars": []any{serverBar(bar(t, 0))}},
-		"outside":     {"bars": []any{serverBar(bar(t, 30))}, "coverage": Coverage{Complete: true}},
-		"empty":       {"bars": []any{}, "coverage": Coverage{Complete: true}},
-		"stuck":       {"bars": []any{serverBar(bar(t, 0))}, "next_cursor": "x", "coverage": Coverage{Complete: true}},
+		"look-ahead":       {"instrument": "EURUSD", "interval": "h1", "bars": []any{late}, "coverage": Coverage{Complete: true}},
+		"no coverage":      {"instrument": "EURUSD", "interval": "h1", "bars": []any{serverBar(bar(t, 0))}},
+		"outside":          {"instrument": "EURUSD", "interval": "h1", "bars": []any{serverBar(bar(t, 30))}, "coverage": Coverage{Complete: true}},
+		"empty":            {"instrument": "EURUSD", "interval": "h1", "bars": []any{}, "coverage": Coverage{Complete: true}},
+		"stuck":            {"instrument": "EURUSD", "interval": "h1", "bars": []any{serverBar(bar(t, 0))}, "next_cursor": "x", "coverage": Coverage{Complete: true}},
+		"wrong instrument": {"instrument": "GBPUSD", "interval": "h1", "bars": []any{serverBar(bar(t, 0))}, "coverage": Coverage{Complete: true}},
+		"wrong interval":   {"instrument": "EURUSD", "interval": "m1", "bars": []any{serverBar(bar(t, 0))}, "coverage": Coverage{Complete: true}},
+		"no identity":      {"bars": []any{serverBar(bar(t, 0))}, "coverage": Coverage{Complete: true}},
 	} {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { json.NewEncoder(w).Encode(page) }))
 		r := req()
@@ -246,5 +249,46 @@ func TestBarsJSONIsStableAndOmitsAbsentSeries(t *testing.T) {
 	snap, _ := json.Marshal(TakeSnapshot(context.Background(), f, []string{"EURUSD"}, t0.Add(2*time.Hour)))
 	if !strings.Contains(string(snap), `"latest":{"time":"2024-01-02T00:00:00Z"`) {
 		t.Errorf("snapshot = %s", snap)
+	}
+}
+
+func TestClientPageIdentityAndCompleteness(t *testing.T) {
+	for name, tc := range map[string]struct {
+		second   map[string]any
+		wantErr  bool
+		complete bool
+	}{
+		"second page other instrument": {map[string]any{"instrument": "GBPUSD", "interval": "h1", "coverage": Coverage{Complete: true}}, true, false},
+		"second page other interval":   {map[string]any{"instrument": "EURUSD", "interval": "m1", "coverage": Coverage{Complete: true}}, true, false},
+		"second page incomplete":       {map[string]any{"instrument": "EURUSD", "interval": "h1", "coverage": Coverage{Complete: false}}, false, false},
+		"both complete":                {map[string]any{"instrument": "EURUSD", "interval": "h1", "coverage": Coverage{Complete: true}}, false, true},
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("cursor") == "" {
+				json.NewEncoder(w).Encode(map[string]any{"instrument": "EURUSD", "interval": "h1", "bars": []any{serverBar(bar(t, 0))},
+					"next_cursor": "c1", "coverage": Coverage{Complete: true}})
+				return
+			}
+			p := map[string]any{"bars": []any{serverBar(bar(t, 1))}}
+			for k, v := range tc.second {
+				p[k] = v
+			}
+			json.NewEncoder(w).Encode(p)
+		}))
+		c := &Client{BaseURL: srv.URL, Now: func() time.Time { return t0 }}
+		got, err := c.Bars(context.Background(), req())
+		if tc.wantErr {
+			if !errors.Is(err, ErrInvalid) {
+				t.Errorf("%s: err = %v", name, err)
+			}
+		} else if err != nil || got.Coverage.Complete != tc.complete {
+			t.Errorf("%s: err = %v, coverage = %+v", name, err, got.Coverage)
+		}
+		strict := req()
+		strict.Strict = true
+		if _, err := c.Bars(context.Background(), strict); (err == nil) != (!tc.wantErr && tc.complete) {
+			t.Errorf("%s: strict err = %v", name, err)
+		}
+		srv.Close()
 	}
 }

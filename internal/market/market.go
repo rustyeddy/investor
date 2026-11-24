@@ -120,7 +120,7 @@ type Source interface {
 func Fingerprint(bars []marketdata.Bar) string {
 	h := sha256.New()
 	for _, b := range bars {
-		fmt.Fprintf(h, "%s %s %d", b.Time.UTC().Format(time.RFC3339), b.AvailableAt.UTC().Format(time.RFC3339), b.Volume)
+		fmt.Fprintf(h, "%s %s %d", b.Time.UTC().Format(time.RFC3339Nano), b.AvailableAt.UTC().Format(time.RFC3339Nano), b.Volume)
 		for _, s := range []marketdata.OHLC{b.Bid, b.Ask, b.Mid, b.Trade} {
 			fmt.Fprintf(h, " %s %s %s %s", s.Open, s.High, s.Low, s.Close)
 		}

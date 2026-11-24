@@ -95,6 +95,7 @@ type wireBar struct {
 type wirePage struct {
 	Source     string     `json:"source"`
 	Instrument string     `json:"instrument"`
+	Interval   string     `json:"interval"`
 	Bars       []wireBar  `json:"bars"`
 	NextCursor string     `json:"next_cursor"`
 	Coverage   *Coverage  `json:"coverage"`
@@ -107,7 +108,7 @@ type wireError struct {
 }
 
 // Bars implements Source: it follows next_cursor to the end, validates every
-// bar, and merges the pages' coverage (the first page describes the whole range).
+// bar, and merges the pages' coverage (incomplete if any page is).
 func (c *Client) Bars(ctx context.Context, r Request) (Bars, error) {
 	if err := r.Validate(); err != nil {
 		return Bars{}, err
@@ -139,6 +140,11 @@ func (c *Client) Bars(ctx context.Context, r Request) (Bars, error) {
 		if p.Coverage == nil {
 			return Bars{}, fmt.Errorf("%w: response has no coverage", ErrInvalid)
 		}
+		// Never label what Trader returned with the identity we asked for.
+		if !strings.EqualFold(p.Instrument, r.Instrument) || p.Interval != r.Interval {
+			return Bars{}, fmt.Errorf("%w: asked for %s/%s, Trader answered %q/%q",
+				ErrInvalid, strings.ToUpper(r.Instrument), r.Interval, p.Instrument, p.Interval)
+		}
 		if page == 0 {
 			cov, source = *p.Coverage, p.Source
 		} else {
@@ -169,8 +175,9 @@ func (c *Client) Bars(ctx context.Context, r Request) (Bars, error) {
 	return finish(r, source, bars, cov, now())
 }
 
-// mergeCoverage keeps the first page's verdict and adds the gaps and months
-// that later pages report, each of which appears on exactly one page.
+// mergeCoverage fails closed: the result is complete only if every page is. It
+// also adds the gaps and months that later pages report, each of which appears
+// on exactly one page.
 func mergeCoverage(a, b Coverage) Coverage {
 	for _, m := range b.Months {
 		dup := false
@@ -182,6 +189,7 @@ func mergeCoverage(a, b Coverage) Coverage {
 		}
 	}
 	a.Gaps = append(a.Gaps, b.Gaps...)
+	a.Complete = a.Complete && b.Complete
 	return a
 }
 
