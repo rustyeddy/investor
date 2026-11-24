@@ -93,3 +93,20 @@ func RunExperiment(ctx context.Context, spec Spec, src market.Source, outDir str
 	path, werr := Write(outDir, rep)
 	return rep, path, errors.Join(runErr, werr)
 }
+
+// Source builds the market-data client for the preflight from the spec's
+// trader_api, or from baseURL when it is not empty (the command-line override).
+// getenv looks up the token variable.
+func (s Spec) Source(baseURL string, getenv func(string) string) (market.Source, error) {
+	if baseURL == "" {
+		baseURL = s.TraderAPI.BaseURL
+	}
+	if baseURL == "" {
+		return nil, errors.New("no Trader API: set trader_api.base_url in the spec or pass --trader (or --skip-preflight)")
+	}
+	env := s.TraderAPI.TokenEnv
+	if env == "" {
+		env = "TRADER_API_TOKEN"
+	}
+	return &market.Client{BaseURL: baseURL, Token: getenv(env)}, nil
+}

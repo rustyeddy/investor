@@ -23,6 +23,7 @@ func testSpec() Spec {
 		Train:     Window{day(2010, 1, 1), day(2015, 1, 1)},
 		Test:      Window{day(2015, 1, 1), day(2016, 1, 1)},
 		Holdout:   day(2023, 1, 1),
+		TraderAPI: TraderAPI{BaseURL: "http://127.0.0.1:8080"},
 		Strategy:  Strategy{Executable: "emax", Trader: "127.0.0.1:9100"},
 		Grid:      Grid{Short: []int{2, 5}, Long: []int{4, 10}, Stop: []string{"0.01"}},
 		Selection: Selection{Metric: MetricNetReturn, MinTrades: 5}, RunTimeout: Duration(time.Minute), ExpectedInitialBalance: "10000",
@@ -402,5 +403,23 @@ func TestGitIdentity(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "f"), []byte("y"), 0o644)
 	if id := GitIdentity(dir); id != clean+"+dirty" {
 		t.Errorf("dirty: %q", id)
+	}
+}
+
+func TestSourceFromSpec(t *testing.T) {
+	env := func(k string) string { return map[string]string{"TRADER_API_TOKEN": "tok", "MY_TOKEN": "mine"}[k] }
+	s := testSpec()
+	src, err := s.Source("", env)
+	if c, ok := src.(*market.Client); err != nil || !ok || c.BaseURL != "http://127.0.0.1:8080" || c.Token != "tok" {
+		t.Fatalf("%+v %v", src, err)
+	}
+	s.TraderAPI.TokenEnv = "MY_TOKEN"
+	src, _ = s.Source("http://127.0.0.1:9", env)
+	if c := src.(*market.Client); c.BaseURL != "http://127.0.0.1:9" || c.Token != "mine" {
+		t.Errorf("override: %+v", c)
+	}
+	s.TraderAPI = TraderAPI{}
+	if _, err := s.Source("", env); err == nil {
+		t.Error("no URL accepted")
 	}
 }

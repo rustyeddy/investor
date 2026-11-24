@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -11,9 +12,9 @@ import (
 )
 
 // newWFACommand is `investor wfa`. It only turns flags into arguments for
-// internal/wfa and prints what comes back. source builds Trader's market-data
-// client for the preflight.
-func newWFACommand(stdout io.Writer, source func(traderURL string) (market.Source, error)) *cobra.Command {
+// internal/wfa and prints what comes back. The Trader address comes from the
+// spec's trader_api, not the firm configuration.
+func newWFACommand(stdout io.Writer) *cobra.Command {
 	var specPath, outDir, traderURL string
 	var skipPreflight bool
 	wfaCmd := &cobra.Command{Use: "wfa", Short: "Walk-forward analysis experiments"}
@@ -31,7 +32,7 @@ func newWFACommand(stdout io.Writer, source func(traderURL string) (market.Sourc
 			}
 			var src market.Source
 			if !skipPreflight {
-				if src, err = source(traderURL); err != nil {
+				if src, err = spec.Source(traderURL, os.Getenv); err != nil {
 					return err
 				}
 			}
@@ -46,7 +47,7 @@ func newWFACommand(stdout io.Writer, source func(traderURL string) (market.Sourc
 	f := run.Flags()
 	f.StringVar(&specPath, "spec", "", "experiment spec file (required)")
 	f.StringVar(&outDir, "out", "wfa-reports", "directory for the report")
-	f.StringVar(&traderURL, "trader", "", "Trader API base URL for the data preflight, overriding trader.base_url")
+	f.StringVar(&traderURL, "trader", "", "Trader API base URL for the data preflight, overriding trader_api.base_url in the spec")
 	f.BoolVar(&skipPreflight, "skip-preflight", false, "skip the data preflight (recorded in the report)")
 	_ = run.MarkFlagRequired("spec")
 	wfaCmd.AddCommand(run)

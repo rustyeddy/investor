@@ -50,6 +50,14 @@ type Strategy struct {
 	Tick       string `json:"tick,omitempty"`
 }
 
+// TraderAPI is where Investor reads Trader's market data for the preflight.
+// The token, if Trader needs one, comes from the named environment variable and
+// is never written in a file.
+type TraderAPI struct {
+	BaseURL  string `json:"base_url"`            // e.g. http://127.0.0.1:8080
+	TokenEnv string `json:"token_env,omitempty"` // Defaults to TRADER_API_TOKEN.
+}
+
 // Spec is the whole experiment, fixed before any out-of-sample result exists.
 type Spec struct {
 	ID         string    `json:"id"`
@@ -58,6 +66,7 @@ type Spec struct {
 	Train      Window    `json:"train"`
 	Test       Window    `json:"test"`
 	Holdout    time.Time `json:"holdout_start"` // No window may reach this instant.
+	TraderAPI  TraderAPI `json:"trader_api"`
 	Strategy   Strategy  `json:"strategy"`
 	Grid       Grid      `json:"grid"`
 	Selection  Selection `json:"selection"`

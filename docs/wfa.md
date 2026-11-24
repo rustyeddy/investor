@@ -78,9 +78,11 @@ make build
 ./bin/investor wfa run --spec examples/wfa-emax-eurusd.json --out wfa-reports
 ```
 
-The preflight needs Trader's HTTP API (`trader.base_url` in the config file or
-`--trader`, and `TRADER_API_TOKEN` if required). Use `--strategy-listen` and `--listen` ports that match
-`strategy.trader` in the spec and `trader.base_url`.
+The preflight needs Trader's HTTP API: `trader_api.base_url` in the spec (or
+`--trader`), and the token in the environment variable named by
+`trader_api.token_env` (default `TRADER_API_TOKEN`) if Trader requires one. The
+firm configuration is not used. Use `--strategy-listen` and `--listen` ports that match
+`strategy.trader` and `trader_api.base_url` in the spec.
 
 Smoke-tested on 2026-11-23 with Trader `6f4c276`: a single run
 (`emax -trader 127.0.0.1:19100 -instrument EURUSD -interval h1 -from 2014-01-01 -to 2014-04-01 -short 5 -long 20 -stop 0.01`)
