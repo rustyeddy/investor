@@ -60,5 +60,6 @@ directly. `firm` does not depend on `journal`. The journal directory comes from
 
 Adding an MCP transport should expose the same service operations, not create
 a parallel workflow engine. Never expose trading execution or tools merely
-because an AI provider or transport supports them. Paper-trading policy and
-future risk checks remain deterministic and enforced by Investor.
+because an AI provider or transport supports them. Investor has no order path;
+sizing and risk checks are deterministic and enforced by Trader (Trader ADR-093),
+and no Investor operation changes them.

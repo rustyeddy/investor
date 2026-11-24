@@ -1,5 +1,11 @@
 # Phase 1 research team
 
+> **Superseded in part (Trader ADR-093; #39, #40).** Investor sizes nothing,
+> reserves nothing and submits no orders; Trader is the only risk authority. Where
+> this document describes Investor-side sizing, risk admission, reservations, paper
+> orders or fills, follow [the paper-trading policy](../docs/paper-trading-policy.md) instead. Do not implement
+> those parts.
+
 These are Investor's logical responsibilities, not a requirement for six LLM
 processes. One model may perform several roles, but each handoff must retain its
 role, evidence, and decision record. A challenge is a separate review pass; a

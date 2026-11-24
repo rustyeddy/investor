@@ -3,6 +3,12 @@ name: find-opportunities
 description: Turn a market brief into falsifiable forex or stock research candidates without placing trades.
 ---
 
+> **Superseded in part (Trader ADR-093; #39, #40).** Investor sizes nothing,
+> reserves nothing and submits no orders; Trader is the only risk authority. Where
+> this document describes Investor-side sizing, risk admission, reservations, paper
+> orders or fills, follow [the paper-trading policy](../../docs/paper-trading-policy.md) instead. Do not implement
+> those parts.
+
 # Find Opportunities
 
 ## Required observations

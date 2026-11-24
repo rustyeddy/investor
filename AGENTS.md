@@ -17,15 +17,20 @@ Trader is Investor's backend for market data, backtesting and trade execution.
 Trader owns market data (acquisition, cleaning and canonical format) and trade
 execution, paper and live: it emulates orders, stops and fills, except for paper
 trading at a broker, where that broker owns the executions. Investor owns
-research: running studies, testing and deriving strategies, finding
-opportunities, the decisions that follow, and the research journal. Investor does
-not implement or second-guess execution mechanics or data acquisition and
-cleaning; it uses Trader for them by reading market data, running backtests and
-requesting trades.
+research: running studies, testing and deriving strategies, finding strategy
+opportunities, the recommendations that follow, and the research journal. Investor does
+not implement or second-guess execution mechanics, sizing, risk limits, or data
+acquisition and cleaning; it uses Trader for them by reading market data and
+running backtests and studies. **Investor submits no orders, paper or live, and
+has no authority to activate strategies or override risk**: it may research
+candidate trades and strategies, including agent-generated ones, but orders come
+only from strategy versions Trader runs, sizes and admits under its own risk
+policy (Trader ADR-093).
 
 - **Boundary:** Trader's REST API. Trader's operations and persisted datasets
-  cross it: Investor reads data, runs backtests and requests trades only through
-  it. Never read Trader's files or databases, or call a broker directly.
+  cross it: Investor reads data, runs backtests and studies, and reads orders,
+  fills, positions and risk decisions only through it. Investor never calls an
+  order endpoint. Never read Trader's files or databases, or call a broker directly.
 - **Code reuse:** Investor may import Trader's dependency-free leaf packages, as
   shared value types only:
   `github.com/rustyeddy/trader/num` (exact decimals) and
@@ -42,14 +47,14 @@ requesting trades.
   around it. Changes to Trader follow Trader's own rules and review process.
 - **Provenance:** record the Trader data a decision used (source, fingerprint,
   build and availability times, gaps) so the decision can be reproduced.
-- **Paper trading:** needs no human approval, per order or to enable it. A paper
-  order may be requested automatically when it is made under strategy and
-  risk-policy versions activated as the paper-trading policy requires, passes the
-  deterministic Go risk checks, and is durably journaled before it is sent; a
-  failed journal write blocks the order.
+- **Paper trading:** Rusty activates a strategy version on a Trader paper
+  account; Trader then trades it automatically, with no per-order human approval.
+  Investor recommends activation or retirement with evidence, cannot activate,
+  halt or deactivate anything itself, and journals the outcomes it reads back. See
+  [docs/paper-trading-policy.md](docs/paper-trading-policy.md).
 - **Live trading with real money:** disabled until a separate issue and Rusty's
-  explicit authorization, with its own approval policy, say otherwise. No live
-  order path may exist before then.
+  explicit authorization, with its own approval policy, say otherwise. Investor
+  never has a live order path, before or after that.
 - **Credentials and policy:** Investor holds no broker credentials; Trader does.
   Never silently change trading risk policy.
 

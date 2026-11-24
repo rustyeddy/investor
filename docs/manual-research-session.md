@@ -1,5 +1,11 @@
 # Manual Phase 1 research session
 
+> **Superseded in part (Trader ADR-093; #39, #40).** Investor sizes nothing,
+> reserves nothing and submits no orders; Trader is the only risk authority. Where
+> this document describes Investor-side sizing, risk admission, reservations, paper
+> orders or fills, follow [the paper-trading policy](paper-trading-policy.md) instead. Do not implement
+> those parts.
+
 Use the [role contracts](../roles/README.md) and
 [versioned paper policy](paper-trading-policy.md). The first workflow researches
 forex swing opportunities, with long/short and intraday strategies supported.
