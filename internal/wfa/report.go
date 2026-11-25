@@ -68,7 +68,35 @@ func (r Report) Summary() string {
 		}
 		fmt.Fprintf(&b, "oos run=%s %s\n", id, line)
 	}
+	for _, run := range r.Training {
+		writeRiskSummary(&b, run)
+	}
+	if r.OOS != nil {
+		writeRiskSummary(&b, *r.OOS)
+	}
 	return b.String()
+}
+
+func writeRiskSummary(w *strings.Builder, run Run) {
+	if run.Outcome == nil || run.Outcome.Summary == nil {
+		return
+	}
+	s := run.Outcome.Summary
+	if s.NetReturnPct == nil && s.MaxPercentDrawdown == nil && len(s.Settings) == 0 {
+		return
+	}
+	value := func(s *string) string {
+		if s == nil {
+			return "unavailable"
+		}
+		return *s
+	}
+	drawdown := "unavailable"
+	if d := s.MaxPercentDrawdown; d != nil {
+		drawdown = fmt.Sprintf("%s%% (%s to %s)", d.Pct, d.PeakTime.Format(time.RFC3339), d.TroughTime.Format(time.RFC3339))
+	}
+	fmt.Fprintf(w, "%s run=%s Trader-reported net_return_pct=%s win_rate=%s max_percent_drawdown=%s\n",
+		run.Phase, run.Outcome.RunID, value(s.NetReturnPct), value(s.WinRate), drawdown)
 }
 
 func orDash(s string) string {

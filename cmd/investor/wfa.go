@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -50,6 +51,21 @@ func newWFACommand(stdout io.Writer) *cobra.Command {
 	f.StringVar(&traderURL, "trader", "", "Trader API base URL for the data preflight, overriding trader_api.base_url in the spec")
 	f.BoolVar(&skipPreflight, "skip-preflight", false, "skip the data preflight (recorded in the report)")
 	_ = run.MarkFlagRequired("spec")
-	wfaCmd.AddCommand(run)
+	wfaCmd.AddCommand(run, newWFAReconcileCommand(stdout))
 	return wfaCmd
+}
+
+func newWFAReconcileCommand(stdout io.Writer) *cobra.Command {
+	return &cobra.Command{
+		Use:   "reconcile <investor-report> <run-id>",
+		Short: "Validate a supplied account journal on stdin and print the equity curve as JSON",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			curve, err := wfa.ReconcileRun(args[0], args[1], cmd.InOrStdin())
+			if err != nil {
+				return err
+			}
+			return json.NewEncoder(stdout).Encode(curve)
+		},
+	}
 }
