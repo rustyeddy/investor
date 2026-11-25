@@ -11,6 +11,7 @@
   "selection": {"metric": "net_return", "min_trades": 30},
   "expected_initial_balance": "10000",
   "expected_currency": "USD",
+  "trader_executable": "../trader/bin/trader",
   "trader_repo": "../trader",
   "strategies_repo": "../strategies",
   "run_timeout": "30m"

@@ -79,8 +79,11 @@ type Spec struct {
 	ExpectedCurrency string `json:"expected_currency"`
 	// TraderRepo and StrategiesRepo are the checkouts the binaries were built
 	// from; their git commits go in the report.
-	TraderRepo     string `json:"trader_repo,omitempty"`
-	StrategiesRepo string `json:"strategies_repo,omitempty"`
+	// TraderExecutable is the trader binary being used; the report records the
+	// version it prints.
+	TraderExecutable string `json:"trader_executable,omitempty"`
+	TraderRepo       string `json:"trader_repo,omitempty"`
+	StrategiesRepo   string `json:"strategies_repo,omitempty"`
 }
 
 // Duration is a time.Duration written as a string such as "10m".
