@@ -435,3 +435,36 @@ func TestCurrencyMismatchStopsBeforeOOS(t *testing.T) {
 		t.Fatalf("%s %v", rep.Status, err)
 	}
 }
+
+func TestTraderVersion(t *testing.T) {
+	ctx := context.Background()
+	script := filepath.Join(t.TempDir(), "trader")
+	write := func(body string) { os.WriteFile(script, []byte("#!/bin/sh\n"+body+"\n"), 0o755) }
+	write("echo trader v0.5.1-1-g6f4c276")
+	if v := TraderVersion(ctx, script); v != "v0.5.1-1-g6f4c276" {
+		t.Errorf("version %q", v)
+	}
+	write("echo something else")
+	if v := TraderVersion(ctx, script); !strings.HasPrefix(v, Unknown) {
+		t.Errorf("odd output: %q", v)
+	}
+	write("exit 1")
+	if v := TraderVersion(ctx, script); !strings.HasPrefix(v, Unknown) {
+		t.Errorf("failure: %q", v)
+	}
+	if v := TraderVersion(ctx, filepath.Join(t.TempDir(), "missing")); !strings.HasPrefix(v, Unknown) {
+		t.Errorf("missing: %q", v)
+	}
+	// It reaches the report; with no executable it says unknown.
+	f := &fakeRunner{trades: 9, equity: map[Params]string{{2, 4, "0.01"}: "10100.00"}}
+	spec := testSpec()
+	spec.TraderExecutable = "trader"
+	rep, _ := Experiment{Spec: spec, Runner: f, TraderVersion: func(_ context.Context, exe string) string { return "v9 via " + exe }}.Execute(ctx)
+	if rep.Provenance["trader_version"] != "v9 via trader" {
+		t.Errorf("provenance %v", rep.Provenance)
+	}
+	rep, _ = Experiment{Spec: testSpec(), Runner: f}.Execute(ctx)
+	if !strings.HasPrefix(rep.Provenance["trader_version"], Unknown) {
+		t.Errorf("no executable: %v", rep.Provenance)
+	}
+}

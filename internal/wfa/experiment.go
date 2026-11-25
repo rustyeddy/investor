@@ -63,6 +63,9 @@ type Experiment struct {
 	// Identify names the build in a checkout, such as its git commit. It defaults
 	// to GitIdentity.
 	Identify func(dir string) string
+	// TraderVersion reports the version of a trader executable. It defaults to
+	// the package's TraderVersion.
+	TraderVersion func(ctx context.Context, exe string) string
 }
 
 // Execute runs the experiment: preflight, the training grid, the choice, and
@@ -79,7 +82,8 @@ func (e Experiment) Execute(ctx context.Context) (Report, error) {
 	rep := Report{
 		ID: sp.ID, CreatedAt: now().UTC(), Spec: sp,
 		Provenance: map[string]string{
-			"trader_build": e.identify(sp.TraderRepo), "strategy_build": e.identify(sp.StrategiesRepo),
+			"trader_version": e.traderVersion(ctx, sp.TraderExecutable),
+			"trader_build":   e.identify(sp.TraderRepo), "strategy_build": e.identify(sp.StrategiesRepo),
 			"trader_initial_balance": Unknown,
 			// Trader's run summary does not carry the risk per trade, and no API exposes it.
 			"trader_risk_per_trade": Unknown + ": not exposed by Trader; not verified",
@@ -88,6 +92,7 @@ func (e Experiment) Execute(ctx context.Context) (Report, error) {
 			"The chosen configuration is the training-score maximum over a small fixed grid; the OOS result is one sample.",
 			"Net return is a plumbing metric, not evidence of an edge.",
 			"A build identity is the checkout's commit, assumed to be what the binaries were built from.",
+			"The Trader version is what the named executable prints, assumed to be the server that ran the backtests.",
 		},
 	}
 	if err := sp.Validate(); err != nil {
@@ -194,6 +199,32 @@ func oosReason(r Run) string {
 		return "status " + r.Outcome.Status
 	}
 	return "no result"
+}
+
+func (e Experiment) traderVersion(ctx context.Context, exe string) string {
+	if exe == "" {
+		return Unknown + ": no trader executable given"
+	}
+	if e.TraderVersion != nil {
+		return e.TraderVersion(ctx, exe)
+	}
+	return TraderVersion(ctx, exe)
+}
+
+// TraderVersion is the version `exe version` prints ("trader v0.5.1"), without
+// the program name, or "unknown: reason".
+func TraderVersion(ctx context.Context, exe string) string {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, exe, "version").Output()
+	if err != nil {
+		return Unknown + ": " + err.Error()
+	}
+	v, ok := strings.CutPrefix(strings.TrimSpace(string(out)), "trader ")
+	if !ok || v == "" || strings.ContainsAny(v, "\n") {
+		return Unknown + fmt.Sprintf(": unrecognized output %q", strings.TrimSpace(string(out)))
+	}
+	return v
 }
 
 func (e Experiment) identify(dir string) string {

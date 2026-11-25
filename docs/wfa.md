@@ -63,6 +63,10 @@ value is recorded. Trader exposes no per-trade risk setting, so the report recor
 `trader_risk_per_trade` as unknown rather than assuming 1%. That needs something
 from Trader (see #42).
 
+`trader_executable` names the trader binary; the report records the version it prints
+(`trader version`, for example `v0.5.1`) as `trader_version`, or `unknown`. It is
+the binary named, assumed to be the server that ran the backtests.
+
 `trader_repo` and `strategies_repo` name the checkouts; the report records their
 HEAD commits, with `+dirty` for uncommitted changes. This is the checkout, not
 the binary, so build the binaries from those checkouts first.
