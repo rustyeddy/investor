@@ -259,7 +259,8 @@ func newRootCommand(stdout, stderr io.Writer) *cobra.Command {
 	}
 	snapshot.Flags().StringVar(&traderURL, "trader", "", "Trader API base URL, overriding trader.base_url")
 
-	root.AddCommand(validate, plan, run, serveCmd, bars, snapshot)
+	wfaCmd := newWFACommand(stdout)
+	root.AddCommand(validate, plan, run, serveCmd, bars, snapshot, wfaCmd)
 	return root
 }
 

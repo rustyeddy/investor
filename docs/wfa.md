@@ -1,0 +1,99 @@
+# Walk-forward experiment (WFA-01)
+
+`investor wfa run` runs one walk-forward experiment ([#42](https://github.com/rustyeddy/investor/issues/42)):
+every grid configuration is backtested on the training window, one is chosen from
+training results alone, and exactly that one is backtested once out of sample.
+
+Trader owns the data, fills, risk and accounting, and the RunIDs. The standalone
+strategy (`strategies/cmd/emax`) connects to `trader serve` over loopback TCP/JSON
+and asks for one historical run. Investor launches those processes one at a time,
+reads each result, chooses, and records. All logic is in `internal/wfa`; the cobra
+command in `cmd/investor/wfa.go` only turns flags into arguments and prints.
+
+## Spec
+
+`examples/wfa-emax-eurusd.json` is the first experiment. It fixes, before any
+out-of-sample result exists: instrument, interval, the training and test windows
+(`from` inclusive, `to` exclusive, UTC), the grid, and the selection rule.
+Validation rejects overlapping windows and any window that reaches
+`holdout_start` (the untouched final holdout), and unknown fields.
+
+The grid is the cross product of `short`, `long` and `stop`, in the order written,
+skipping configurations whose short window is not below the long.
+
+## Selection
+
+Score is `net_return = (equity - initial balance) / initial balance`, from Trader's
+run summary, as an exact decimal. A run is ineligible, never scored as zero, if the
+process failed or timed out, the status is not `completed`, the summary is missing
+or unreadable, the initial balance is not positive, or it has fewer than
+`min_trades` trades. The highest score wins; ties go to the smaller long window,
+then the smaller short window, then the smaller stop. If nothing is eligible the
+report says `no_eligible_selection` and the out-of-sample window is not used.
+
+## Data preflight
+
+Before any backtest, each window's bars are read through `market.Source` (Trader's
+REST API) with `Strict` and `AsOf` set to the window's end. An incomplete or missing
+range stops the experiment (`preflight_failed`); windows are never shortened. The
+report records source, bar count, fingerprint and gaps. `--skip-preflight` omits
+this and the report says so. Warm-up bars before a window are not checked.
+
+## Report
+
+`<out>/<id>.json` holds the spec, data checks, every training run (exit code,
+stdout, stderr, RunID, Trader's summary), the scores, the selection and rationale,
+the OOS run, and limitations. Provenance Investor cannot obtain yet (Trader and
+strategy builds, risk configuration) is the string `unknown`. An existing report is
+never overwritten; reruns need a new `id`. A short summary is printed.
+
+## Stop distance versus risk
+
+EMAX's `stop` is a **price-distance stop**: a fraction of the entry price, so
+`0.01` is 1% of the price. It is not Trader's per-trade risk (1% of equity), which
+Trader uses to size the position from that stop distance. Validation requires
+every grid stop to be a decimal above 0 and below 1.
+
+## Effective Trader settings and build identity
+
+Trader's run summary carries the starting balance it used. The spec's
+`expected_initial_balance` and `expected_currency` are compared with it on every run (the equity currency too); a difference stops the
+experiment (`settings_mismatch`) before the out-of-sample run, and the observed
+value is recorded. Trader exposes no per-trade risk setting, so the report records
+`trader_risk_per_trade` as unknown rather than assuming 1%. That needs something
+from Trader (see #42).
+
+`trader_repo` and `strategies_repo` name the checkouts; the report records their
+HEAD commits, with `+dirty` for uncommitted changes. This is the checkout, not
+the binary, so build the binaries from those checkouts first.
+
+## Where official results go
+
+Official reports are recorded in the Portfolio repository, `/srv/portfolio/backtests`,
+by passing it as `--out`. That is only a directory: Investor has no dependency on
+the Portfolio repository, writes nothing else there, and never overwrites a report.
+Scratch and test runs should use another `--out`. Committing a report there is a
+separate step.
+
+## Reproduce
+
+Adjacent checkouts: `../trader`, `../strategies`, `../investor`.
+
+```sh
+(cd ../strategies && go build -o bin/emax ./cmd/emax)
+(cd ../trader && go build -o bin/trader ./cmd/trader && ./bin/trader serve)   # another terminal; needs the canonical data under /srv/data (--data-root)
+make build
+./bin/investor wfa run --spec examples/wfa-emax-eurusd.json --out /srv/portfolio/backtests
+```
+
+The preflight needs Trader's HTTP API: `trader_api.base_url` in the spec (or
+`--trader`), and the token in the environment variable named by
+`trader_api.token_env` (default `TRADER_API_TOKEN`) if Trader requires one. The
+firm configuration is not used. Use `--strategy-listen` and `--listen` ports that match
+`strategy.trader` and `trader_api.base_url` in the spec.
+
+Smoke-tested on 2026-11-23 with Trader `6f4c276`: a single run
+(`emax -trader 127.0.0.1:19100 -instrument EURUSD -interval h1 -from 2014-01-01 -to 2014-04-01 -short 5 -long 20 -stop 0.01`)
+exited 0 and printed `run <RunID>: completed` and a one-line JSON summary in which
+money values are `{"amount","currency"}` objects. The full grid and one OOS run
+then completed in about 13 seconds.

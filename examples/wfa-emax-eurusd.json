@@ -1,0 +1,17 @@
+{
+  "id": "wfa01-emax-eurusd-h1",
+  "instrument": "EURUSD",
+  "interval": "h1",
+  "train": {"from": "2010-01-01T00:00:00Z", "to": "2015-01-01T00:00:00Z"},
+  "test": {"from": "2015-01-01T00:00:00Z", "to": "2016-01-01T00:00:00Z"},
+  "holdout_start": "2023-01-01T00:00:00Z",
+  "trader_api": {"base_url": "http://127.0.0.1:8080", "token_env": "TRADER_API_TOKEN"},
+  "strategy": {"executable": "../strategies/bin/emax", "trader": "127.0.0.1:9100", "tick": "0.00001"},
+  "grid": {"short": [5, 10], "long": [20, 50], "stop": ["0.005", "0.01"]},
+  "selection": {"metric": "net_return", "min_trades": 30},
+  "expected_initial_balance": "10000",
+  "expected_currency": "USD",
+  "trader_repo": "../trader",
+  "strategies_repo": "../strategies",
+  "run_timeout": "30m"
+}
