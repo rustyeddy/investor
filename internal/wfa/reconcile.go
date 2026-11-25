@@ -79,12 +79,18 @@ func ReconcileAccount(journal io.Reader, sum Summary) ([]EquityPoint, error) {
 			return nil, fmt.Errorf("invalid account observation %d: sequence, kind, time or account mismatch", len(curve)+1)
 		}
 		currency := sum.InitialBalance.Currency
-		for _, m := range []Money{point.Equity, point.Balance, point.Unrealized} {
-			if _, err := decimal(m.Amount); err != nil || currency == "" || m.Currency != currency {
+		var amounts [3]*big.Rat
+		for i, m := range []Money{point.Equity, point.Balance, point.Unrealized} {
+			amount, err := decimal(m.Amount)
+			if err != nil || currency == "" || m.Currency != currency {
 				return nil, fmt.Errorf("invalid money in account observation %d", point.Seq)
 			}
+			amounts[i] = amount
 		}
-		equity, _ := decimal(point.Equity.Amount)
+		equity, balance, unrealized := amounts[0], amounts[1], amounts[2]
+		if equity.Cmp(new(big.Rat).Add(balance, unrealized)) != 0 {
+			return nil, fmt.Errorf("account observation %d: equity differs from balance plus unrealized P&L", point.Seq)
+		}
 		curve = append(curve, point)
 		if initial == nil {
 			if equity.Sign() <= 0 || !sameMoney(point.Equity, sum.InitialBalance) ||
@@ -110,8 +116,9 @@ func ReconcileAccount(journal io.Reader, sum Summary) ([]EquityPoint, error) {
 	if err := scan.Err(); err != nil {
 		return nil, fmt.Errorf("read account journal: %w", err)
 	}
-	if len(curve) < 2 || len(curve)-1 != sum.Bars {
-		return nil, fmt.Errorf("account journal has %d observations, expected initial plus %d frames", len(curve), sum.Bars)
+	// Several instruments can contribute bars to one availability frame.
+	if len(curve) < 2 {
+		return nil, fmt.Errorf("account journal requires an initial observation and at least one frame")
 	}
 	last := curve[len(curve)-1]
 	if !sameMoney(last.Equity, sum.Equity) || !sameMoney(last.Balance, sum.Balance) ||

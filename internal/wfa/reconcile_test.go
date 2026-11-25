@@ -31,7 +31,8 @@ func TestReconcileRun(t *testing.T) {
 	}
 	returnPct, unrealized := "70", usd("10")
 	sum := Summary{Account: "sim", InitialBalance: usd("100"), Balance: usd("160"),
-		Bars: 3, Equity: usd("170"), Unrealized: &unrealized, NetReturnPct: &returnPct,
+		// Two instruments supply bars to each of the three account frames.
+		Bars: 6, Equity: usd("170"), Unrealized: &unrealized, NetReturnPct: &returnPct,
 		MaxDrawdown:        &Drawdown{usd("30"), "15", usd("200"), usd("170"), at(2), at(3)},
 		MaxPercentDrawdown: &Drawdown{usd("20"), "20", usd("100"), usd("80"), at(0), at(1)}}
 	path, err := Write(t.TempDir(), Report{ID: "reconcile", OOS: &Run{
@@ -52,13 +53,31 @@ func TestReconcileRun(t *testing.T) {
 		{"net return", func(s *Summary) { s.NetReturnPct = nil }},
 		{"absolute drawdown", func(s *Summary) { s.MaxDrawdown = s.MaxPercentDrawdown }},
 		{"percentage drawdown", func(s *Summary) { s.MaxPercentDrawdown = s.MaxDrawdown }},
-		{"observations", func(s *Summary) { s.Bars++ }},
 	} {
 		t.Run(tt.want, func(t *testing.T) {
 			bad := sum
 			tt.change(&bad)
 			if _, err := ReconcileAccount(bytes.NewReader(journal.Bytes()), bad); err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("wanted %q mismatch, got %v", tt.want, err)
+			}
+		})
+	}
+	for _, tt := range []struct {
+		name, before, after, want string
+	}{
+		{"intermediate balance", `"balance":{"amount":"80"`, `"balance":{"amount":"81"`, "observation 2: equity differs"},
+		{"intermediate unrealized", `"balance":{"amount":"80","currency":"USD"},"unrealized":{"amount":"0"`,
+			`"balance":{"amount":"80","currency":"USD"},"unrealized":{"amount":"1"`, "observation 2: equity differs"},
+		{"missing sequence", `"seq":2`, `"seq":3`, "invalid account observation 2"},
+		{"repeated time", at(1).Format(time.RFC3339), at(0).Format(time.RFC3339), "invalid account observation 2"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			bad := strings.Replace(journal.String(), tt.before, tt.after, 1)
+			if bad == journal.String() {
+				t.Fatal("fixture did not change")
+			}
+			if _, err := ReconcileAccount(strings.NewReader(bad), sum); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("wanted %q, got %v", tt.want, err)
 			}
 		})
 	}

@@ -78,8 +78,11 @@ authorized export, validate the journal and emit an equity curve as JSON:
 investor wfa reconcile <investor-report> <run-id> < exported-account.jsonl
 ```
 
-The command checks the observation sequence, initial and final account figures,
-net return, and both drawdown episodes. It exits with an error on discrepancies
+The command checks the observation sequence and times, verifies that each
+observation's equity equals its balance plus unrealized P&L, and reconciles
+initial and final account figures, net return, and both drawdown episodes.
+An availability frame can contain bars from multiple instruments.
+The command exits with an error on discrepancies
 or missing required fields. Curve points preserve the journal's simulated time,
 reported equity, and stale-mark indicators. The caller supplies the matching
 journal and its provenance.
