@@ -2,6 +2,7 @@ package wfa
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os/exec"
@@ -85,8 +86,7 @@ func (e Experiment) Execute(ctx context.Context) (Report, error) {
 			"trader_version": e.traderVersion(ctx, sp.TraderExecutable),
 			"trader_build":   e.identify(sp.TraderRepo), "strategy_build": e.identify(sp.StrategiesRepo),
 			"trader_initial_balance": Unknown,
-			// Trader's run summary does not carry the risk per trade, and no API exposes it.
-			"trader_risk_per_trade": Unknown + ": not exposed by Trader; not verified",
+			"trader_risk_per_trade":  Unknown + ": absent from run summaries",
 		},
 		Limitations: []string{
 			"The chosen configuration is the training-score maximum over a small fixed grid; the OOS result is one sample.",
@@ -248,6 +248,18 @@ func (r *Report) checkBalance(runs []Run, want, currency string) string {
 		m := run.Outcome.Summary.InitialBalance
 		r.Provenance["trader_initial_balance"] = strings.TrimSpace(m.Amount + " " + m.Currency)
 		sum := run.Outcome.Summary
+		var settings struct {
+			RiskPerTrade string `json:"risk_per_trade"`
+		}
+		if json.Unmarshal(sum.Settings, &settings) == nil && settings.RiskPerTrade != "" {
+			key := "trader_risk_per_trade"
+			switch r.Provenance[key] {
+			case Unknown + ": absent from run summaries", settings.RiskPerTrade:
+				r.Provenance[key] = settings.RiskPerTrade
+			default:
+				r.Provenance[key] = "varies by run; see run settings"
+			}
+		}
 		if m.Currency != currency || sum.Equity.Currency != currency {
 			return fmt.Sprintf("Trader ran %s/%s in %q (equity %q), expected %s; results are not comparable with the intended experiment",
 				run.Phase, run.Outcome.RunID, m.Currency, sum.Equity.Currency, currency)

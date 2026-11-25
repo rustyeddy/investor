@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Run statuses reported by Trader.
@@ -17,6 +18,10 @@ type Money struct {
 }
 
 func (m *Money) UnmarshalJSON(b []byte) error {
+	if string(b) == "null" {
+		*m = Money{}
+		return nil
+	}
 	var s string
 	if json.Unmarshal(b, &s) == nil {
 		f := strings.Fields(s)
@@ -36,15 +41,31 @@ func (m *Money) UnmarshalJSON(b []byte) error {
 // Summary is the part of Trader's run summary that selection reads. Money
 // values are kept as the decimal strings Trader sent.
 type Summary struct {
-	Account        string `json:"account"`
-	InitialBalance Money  `json:"initial_balance"`
-	Bars           int    `json:"bars"`
-	Trades         int    `json:"trades"`
-	Wins           int    `json:"wins"`
-	Losses         int    `json:"losses"`
-	Realized       Money  `json:"realized"`
-	Balance        Money  `json:"balance"`
-	Equity         Money  `json:"equity"`
+	Account            string          `json:"account"`
+	InitialBalance     Money           `json:"initial_balance"`
+	Bars               int             `json:"bars"`
+	Trades             int             `json:"trades"`
+	Wins               int             `json:"wins"`
+	Losses             int             `json:"losses"`
+	Realized           Money           `json:"realized"`
+	Balance            Money           `json:"balance"`
+	Equity             Money           `json:"equity"`
+	Unrealized         *Money          `json:"unrealized"`
+	NetReturnPct       *string         `json:"net_return_pct"`
+	WinRate            *string         `json:"win_rate"`
+	MaxDrawdown        *Drawdown       `json:"max_drawdown"`
+	MaxPercentDrawdown *Drawdown       `json:"max_percent_drawdown"`
+	Settings           json.RawMessage `json:"settings,omitempty"`
+}
+
+// Drawdown describes one fall in the Trader account's observed equity.
+type Drawdown struct {
+	Amount       Money     `json:"amount"`
+	Pct          string    `json:"pct"`
+	PeakEquity   Money     `json:"peak_equity"`
+	TroughEquity Money     `json:"trough_equity"`
+	PeakTime     time.Time `json:"peak_time"`
+	TroughTime   time.Time `json:"trough_time"`
 }
 
 // Outcome is what one strategy process reported.

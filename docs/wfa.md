@@ -43,8 +43,8 @@ this and the report says so. Warm-up bars before a window are not checked.
 
 `<out>/<id>.json` holds the spec, data checks, every training run (exit code,
 stdout, stderr, RunID, Trader's summary), the scores, the selection and rationale,
-the OOS run, and limitations. Provenance Investor cannot obtain yet (Trader and
-strategy builds, risk configuration) is the string `unknown`. An existing report is
+the OOS run, and limitations. Unavailable build provenance is recorded as
+`unknown`. An existing report is
 never overwritten; reruns need a new `id`. A short summary is printed.
 
 ## Stop distance versus risk
@@ -59,9 +59,39 @@ every grid stop to be a decimal above 0 and below 1.
 Trader's run summary carries the starting balance it used. The spec's
 `expected_initial_balance` and `expected_currency` are compared with it on every run (the equity currency too); a difference stops the
 experiment (`settings_mismatch`) before the out-of-sample run, and the observed
-value is recorded. Trader exposes no per-trade risk setting, so the report records
-`trader_risk_per_trade` as unknown rather than assuming 1%. That needs something
-from Trader (see #42).
+value is recorded. Current Trader builds return each completed run's effective
+`settings`, which Investor records with the run. Older summaries may omit them.
+
+## WFA-02 account reconciliation
+
+[WFA-02](https://github.com/rustyeddy/investor/issues/45) uses the same checked-in
+spec and training selection as WFA-01. Current Trader summaries include net
+return in percent, win rate as a fraction, and two drawdown episodes with
+peak/trough equity and times. The largest dollar fall and the largest percentage
+fall can be different episodes. A null win rate means unavailable, while a
+reported zero is a measured value. Older summaries can lack the new fields.
+
+Given an Investor report and a journal supplied for its RunID through an
+authorized export, validate the journal and emit an equity curve as JSON:
+
+```sh
+investor wfa reconcile <investor-report> <run-id> < exported-account.jsonl
+```
+
+The command checks the observation sequence and times, verifies that each
+observation's equity equals its balance plus unrealized P&L, and reconciles
+initial and final account figures, net return, and both drawdown episodes.
+An availability frame can contain bars from multiple instruments.
+The command exits with an error on discrepancies
+or missing required fields. Curve points preserve the journal's simulated time,
+reported equity, and stale-mark indicators. The caller supplies the matching
+journal and its provenance.
+
+The [WFA-01 baseline](https://github.com/rustyeddy/portfolio/tree/main/backtests/emax/EURUSD/H1/wfa01/run1)
+selected short 5, long 50, stop 0.01, with −12.91% training and +10.66% OOS net
+return. Trader REST artifact retrieval is tracked in
+[Trader #700](https://github.com/rustyeddy/trader/issues/700). The WFA-02 real-data
+run, artifact archive, and result comparison are pending that interface.
 
 `trader_executable` names the trader binary; the report records the version it prints
 (`trader version`, for example `v0.5.1`) as `trader_version`, or `unknown`. It is
