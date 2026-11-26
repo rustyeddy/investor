@@ -69,7 +69,12 @@ evidence is finalized and archived. See [docs/portfolio.md](docs/portfolio.md).
 - **Access:** Investor may read and write the Portfolio repository, create
   branches and worktrees in it, commit, push, and open Portfolio pull requests.
   Investor never merges a Portfolio PR, never switches or modifies the main
-  Portfolio checkout, and never writes into an existing experiment package.
+  Portfolio checkout, and never writes into an existing experiment package, with
+  one exception: completing a package that was merged partial. That happens only
+  when it makes the package complete, adds only the missing run files and
+  `archive.json`, appends their lines to
+  `checksums.sha256`, changes no existing file or line, and goes through its own
+  branch and PR. A package with `archive.json` is closed.
 - **Trader's runs:** Trader writes each run to its results root, configured on the
   shared filesystem as `/srv/portfolio/.incoming/runs` (gitignored). Investor reads
   a run there only after its `run.json` reports a terminal status (`completed`,
@@ -81,8 +86,8 @@ evidence is finalized and archived. See [docs/portfolio.md](docs/portfolio.md).
   checkout or another experiment's branch, never commit an active run, and never
   present partial or failed evidence as complete.
 - **Immutable evidence:** once archived, `experiment.json`, Trader's `run.json`,
-  `events.jsonl` and `account.jsonl`, `archive.json` and `checksums.sha256` are
-  never edited. A correction is a new, reviewed package, not a changed file.
+  `events.jsonl` and `account.jsonl`, `archive.json` and the lines of
+  `checksums.sha256` are never edited. A correction is a new, reviewed package, not a changed file.
 - **Notes:** `notes.org` (Emacs Org mode) holds questions, observations and
   hypotheses. It is editable in the experiment's open PR and in later notes-only
   PRs, is not covered by `checksums.sha256`, and labels a hypothesis as one until

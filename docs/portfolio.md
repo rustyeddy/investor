@@ -13,7 +13,7 @@ backtests/<strategy>/<INSTRUMENT>/<Interval>/<experiment>/<run>/
   experiment.json      Investor's report (wfa.Report), byte for byte
   report.md            human summary of the result (not checksummed)
   checksums.sha256     sha256sum format, relative paths, every file but itself, report.md and notes.org
-  archive.json         archive record (planned, PR 2)
+  archive.json         what an archive added to the package, and from where
   notes.org            questions, observations, hypotheses (editable)
   runs/<RunID>/
     run.json           Trader's run record
@@ -63,20 +63,75 @@ One branch, worktree and PR per experiment, in this order:
    for it in `/srv/portfolio.worktrees/<experiment>`. The main checkout is never
    switched or written.
 2. **Run** the study with Trader writing to `.incoming/runs`.
-3. **Archive** each run whose `run.json` reports a terminal status, byte for
-   byte, into the prepared worktree, with `experiment.json`, `checksums.sha256`
-   and `archive.json`.
+3. **Archive** with `investor portfolio archive`: each run whose `run.json` reports
+   a terminal status is copied, byte for byte, into the prepared worktree, with
+   `experiment.json`, `checksums.sha256` and `archive.json`.
 4. **Publish:** commit, push and open the Portfolio PR. Rusty merges.
 
-`investor` automates prepare, archive and publish in later PRs. Until then, do
-them by hand:
+`<experiment>` is the report's `id`. `investor` does step 3; prepare and publish
+are automated in a later PR. Until then:
 
 ```sh
 git -C /srv/portfolio fetch origin
 git -C /srv/portfolio worktree add -b research/<experiment> /srv/portfolio.worktrees/<experiment> origin/main
-# run; copy finalized runs into the package; then, inside the package:
-find . -type f ! -name checksums.sha256 ! -name report.md ! -name notes.org -printf '%P\0' | sort -z | xargs -0 sha256sum > checksums.sha256
+# run the study (Trader's results.root is /srv/portfolio/.incoming/runs)
+investor portfolio archive /srv/portfolio.worktrees/<experiment> <report.json> \
+  --path backtests/<strategy>/<INSTRUMENT>/<Interval>/<experiment-dir>/<run-dir>
+# add report.md (and notes.org if wanted), commit, push, open the PR
 ```
+
+## Archive
+
+`investor portfolio archive <worktree> <report.json>` reads Trader's runs from
+`<root>/.incoming/runs`, where `--root` is the **main** checkout. It writes only
+into `<worktree>`, which must be the top of a linked worktree of that repository
+with branch `research/<experiment>` checked out. It commits nothing.
+
+- A new experiment needs `--path`. Its instrument and interval segments must match
+  the report, and nothing may be there already.
+- A run is copied only when its `run.json` is that run's and says `completed`,
+  `failed` or `cancelled`. A run still `running` (a crashed run looks the same),
+  or with no readable `run.json`, stops the whole archive.
+- A run with no directory in the ingress, or a finished run without a journal, is
+  listed as missing, and the package reads `partial`.
+- A source file that changes while it is read stops the archive, as does a
+  symlink. If no run file at all is found, nothing is written.
+- The package is assembled in a `.staging-<experiment>` directory, checked by the
+  reader and renamed into place. If an archive is killed part way, see
+  [Recovery](#recovery).
+- The ingress is left as it was. Clearing it is manual.
+
+`archive.json` (schema version 1) records the experiment id, package path, time,
+source directory, whether an existing package was completed and, per run, Trader's
+status, each file's SHA-256, size and origin (`copied` or `already_archived`) and
+the missing files.
+
+### Completing a partial package
+
+A package merged without its Trader files, such as WFA-02, is completed in a new
+worktree from current `main`, on branch `research/<experiment>`, by giving the
+same report (the package's own `experiment.json` will do) and no `--path`:
+
+```sh
+investor portfolio archive /srv/portfolio.worktrees/<experiment> \
+  /srv/portfolio.worktrees/<experiment>/<package>/experiment.json
+```
+
+This is the one way an existing package gains files. The report must be byte for
+byte the package's `experiment.json`, the package must verify, and it must have no
+`archive.json` yet. Existing files are not changed; a copy in the ingress that
+differs from an archived file stops the archive. `checksums.sha256` keeps its
+lines and gains lines for the added files.
+
+Completion happens only when the result reads `complete`: every run attempt in
+the manifest with all three of Trader's files. If any is lacking, the command says
+which and leaves the package unchanged, so it can be run again when they arrive.
+There is no override. A manifest with an attempt that never got a RunID therefore
+cannot be completed. Once a package has `archive.json` it is closed, including a
+new experiment that was archived partial.
+
+The run files must be in the ingress. Runs written elsewhere, as WFA-02's were,
+are first copied there unchanged (`cp -a <results-root>/run_... <root>/.incoming/runs/`).
 
 ## Notes
 
@@ -95,9 +150,24 @@ hypothesis as one until evidence supports it:
    Untested. Compare ADX by year before acting on it.
 ```
 
+### Recovery
+
+An archive killed part way can leave directories beside the package, in its parent
+directory. They are ignored by Git, so look with `ls -a`:
+
+| Left behind | Package directory | What to do |
+|---|---|---|
+| `.staging-<experiment>` only | as before (absent for a new experiment) | remove the staging directory |
+| `.staging-<experiment>.old` and `.staging-<experiment>` | **absent** | `.old` is the package as it was: `mv .staging-<experiment>.old <run-dir>`, then remove `.staging-<experiment>` |
+| `.staging-<experiment>.old` only | present | the completed package is in place: check it with `investor portfolio --root <worktree> summary <experiment>` (evidence `complete`), then remove `.old` |
+
+Never remove `.old` while the package directory is absent: it may be the only copy
+of uncommitted files such as `notes.org`. Then run the archive again if the
+package is not complete. `archive` refuses to run while `.old` exists.
+
 ## Reading the repository
 
-`investor portfolio` reads and never writes. `--root` (or
+`list`, `summary`, `cat` and `reconcile` never write. `--root` (or
 `INVESTOR_PORTFOLIO_ROOT`, default `/srv/portfolio`) points at the checkout or a
 worktree. Every file is opened through a root that cannot escape it, must be a
 regular file, and is hashed against `checksums.sha256` before it is used.
