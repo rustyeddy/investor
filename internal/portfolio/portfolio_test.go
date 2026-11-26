@@ -490,3 +490,93 @@ func TestHistoricalPackages(t *testing.T) {
 		t.Fatalf("reconcile without a journal: err = %v", err)
 	}
 }
+
+// editReport rewrites experiment.json through edit and re-signs the package.
+func (f *fixture) editReport(edit func(*wfa.Report)) {
+	f.t.Helper()
+	data, err := os.ReadFile(filepath.Join(f.dir, ManifestFile))
+	if err != nil {
+		f.t.Fatal(err)
+	}
+	var rep wfa.Report
+	if err := json.Unmarshal(data, &rep); err != nil {
+		f.t.Fatal(err)
+	}
+	edit(&rep)
+	if data, err = json.Marshal(rep); err != nil {
+		f.t.Fatal(err)
+	}
+	f.write(ManifestFile, string(data))
+	f.sign()
+}
+
+func TestRunAttemptsWithoutARunIDKeepTheExperimentIncomplete(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		run    int
+		edit   func(*wfa.Report)
+		detail string
+	}{
+		{"nil outcome", 1, func(r *wfa.Report) { r.Training[0].Outcome, r.Training[0].Err = nil, "strategy did not start" }, "strategy did not start"},
+		{"empty RunID", 3, func(r *wfa.Report) {
+			r.OOS.Outcome = &wfa.Outcome{Status: "failed", Error: "connection refused"}
+		}, "connection refused"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			f := newFixture(t)
+			f.remove(filepath.Join(RunsDir, runID(tt.run)))
+			f.editReport(tt.edit)
+			e := f.only()
+			// The manifest still claims complete; the evidence cannot.
+			if e.Status != wfa.StatusComplete || e.Evidence != Partial || len(e.Runs) != 3 || len(e.Problems) != 0 {
+				t.Fatalf("status %s, evidence %s, runs %d, problems %v", e.Status, e.Evidence, len(e.Runs), e.Problems)
+			}
+			var unassigned []Run
+			for _, run := range e.Runs {
+				if run.RunID == "" {
+					unassigned = append(unassigned, run)
+				}
+			}
+			if len(unassigned) != 1 || unassigned[0].Evidence != Missing || !strings.Contains(unassigned[0].Detail, tt.detail) {
+				t.Fatalf("unassigned = %+v", unassigned)
+			}
+			if _, err := f.repo().OpenArtifact(e.ID, "", RunFile); err == nil {
+				t.Fatal("opened a run with no RunID")
+			}
+		})
+	}
+}
+
+func TestLeftoverDirectoryOfAnUnassignedAttemptIsAProblem(t *testing.T) {
+	f := newFixture(t)
+	f.editReport(func(r *wfa.Report) { r.Training[0].Outcome = nil })
+	if e := f.only(); e.Evidence != Untrusted || !strings.Contains(strings.Join(e.Problems, "; "), "is not referenced") {
+		t.Fatalf("evidence %s, problems %v", e.Evidence, e.Problems)
+	}
+}
+
+func TestReportWithNoRunsIsMissingEvidence(t *testing.T) {
+	f := newFixture(t)
+	f.remove(RunsDir)
+	f.editReport(func(r *wfa.Report) { r.Training, r.OOS = nil, nil })
+	if e := f.only(); e.Status != wfa.StatusComplete || e.Evidence != Missing || len(e.Runs) != 0 || len(e.Problems) != 0 {
+		t.Fatalf("status %s, evidence %s, runs %d, problems %v", e.Status, e.Evidence, len(e.Runs), e.Problems)
+	}
+}
+
+func TestOnlyTerminalTraderStatusesAreEvidence(t *testing.T) {
+	for status, want := range map[string]Evidence{
+		"completed": Complete, "failed": Complete, "cancelled": Complete,
+		"running": Untrusted, "queued": Untrusted, "": Untrusted, "Completed": Untrusted,
+	} {
+		t.Run(status, func(t *testing.T) {
+			f := newFixture(t)
+			f.write(filepath.Join(RunsDir, runID(1), RunFile), fmt.Sprintf(`{"run_id":%q,"status":%q}`, runID(1), status))
+			f.sign()
+			e := f.only()
+			if run := runByID(t, e, runID(1)); run.Evidence != want || e.Evidence != want {
+				t.Fatalf("run %s, experiment %s, want %s: %+v", run.Evidence, e.Evidence, want, run.Files[0])
+			}
+		})
+	}
+}

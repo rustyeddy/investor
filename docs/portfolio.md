@@ -24,10 +24,12 @@ backtests/<strategy>/<INSTRUMENT>/<Interval>/<experiment>/<run>/
 - The **experiment id** is the `id` field of `experiment.json`, for example
   `wfa01-emax-eurusd-h1-run1`. It is unique across the repository, and it is not
   the path. Duplicate ids make every package that carries them invalid.
-- A **RunID** is Trader's `run_` followed by a 26-character ULID. Every completed
-  run in the manifest (training runs, then the OOS run) names one, and its
-  directory is `runs/<RunID>/`. A run directory the manifest does not name is a
-  problem.
+- A **RunID** is Trader's `run_` followed by a 26-character ULID. Every run
+  attempt in the manifest (training runs, then the OOS run) should name one, and
+  its directory is `runs/<RunID>/`. A run directory the manifest does not name is
+  a problem. An attempt that ended before Trader assigned a RunID is still
+  counted, as a run with no RunID and `missing` evidence, so its experiment can
+  never read complete.
 - Trader writes runs to `/srv/portfolio/.incoming/runs` (its `results.root`).
   That directory, and `.staging-*` directories used while archiving, are
   gitignored and skipped by the reader. Directories whose names start with a dot
@@ -37,9 +39,10 @@ backtests/<strategy>/<INSTRUMENT>/<Interval>/<experiment>/<run>/
 
 - **Experiment status:** the report's `status` (`complete`,
   `no_eligible_selection`, ...), as Investor recorded it.
-- **Run status:** Trader's `run.json` status (`completed`, `failed`,
-  `cancelled`). A failed run stays labeled failed. A `run.json` still marked
-  `running` is not evidence, and the run reads invalid.
+- **Run status:** Trader's `run.json` status, which must be terminal:
+  `completed`, `failed` or `cancelled`. A failed or cancelled run can be
+  complete evidence and stays labeled failed or cancelled. Any other status,
+  `running` or empty included, is not evidence, and the run reads invalid.
 - **Evidence:** whether the files are there and match `checksums.sha256`:
   - `complete`: `run.json`, `events.jsonl` and `account.jsonl` all verified;
   - `partial`: some verified, the rest absent;
@@ -48,8 +51,8 @@ backtests/<strategy>/<INSTRUMENT>/<Interval>/<experiment>/<run>/
     file (a symlink, for example), or the package has a problem.
 
 An experiment's evidence is `invalid` if the manifest is not verified, any run is
-invalid or the package has a problem, `partial` if any run is not complete, and
-otherwise `complete`. The historical WFA-01 and WFA-02 packages read `partial`:
+invalid or the package has a problem, `missing` if the manifest lists no runs,
+`partial` if any run is not complete, and otherwise `complete`. The historical WFA-01 and WFA-02 packages read `partial`:
 they predate `account.jsonl`, and WFA-02 has no Trader files at all.
 
 ## Workflow
@@ -72,7 +75,7 @@ them by hand:
 git -C /srv/portfolio fetch origin
 git -C /srv/portfolio worktree add -b research/<experiment> /srv/portfolio.worktrees/<experiment> origin/main
 # run; copy finalized runs into the package; then, inside the package:
-find . -type f ! -name checksums.sha256 ! -name report.md ! -name notes.org -printf '%P\n' | sort | xargs sha256sum > checksums.sha256
+find . -type f ! -name checksums.sha256 ! -name report.md ! -name notes.org -printf '%P\0' | sort -z | xargs -0 sha256sum > checksums.sha256
 ```
 
 ## Notes

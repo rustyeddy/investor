@@ -66,12 +66,13 @@ type Evidence string
 const (
 	Complete  Evidence = "complete" // every expected file is present and verified
 	Partial   Evidence = "partial"  // some expected files are missing; nothing is wrong
-	Missing   Evidence = "missing"  // none of a run's files are present
+	Missing   Evidence = "missing"  // none of a run's files are present, or there is no run
 	Untrusted Evidence = "invalid"  // something fails verification; do not rely on it
 )
 
-// runPending is Trader's status while a run is in progress.
-const runPending = "running"
+// Terminal is the set of Trader run statuses that end a run. Any other status
+// in run.json, including "running" or none, means the run is not evidence.
+var Terminal = map[string]bool{"completed": true, "failed": true, "cancelled": true}
 
 var runIDPattern = regexp.MustCompile(`^run_[0-9A-HJKMNP-TV-Z]{26}$`)
 
@@ -101,9 +102,11 @@ type Record struct {
 // The three statuses are separate: ReportedStatus is what the strategy process
 // printed when Investor ran it (from experiment.json), Record.Status is Trader's
 // own (from the archived run.json), and Evidence is how much of the run's files
-// are archived and verified.
+// are archived and verified. A run attempt that ended before Trader assigned a
+// RunID has an empty RunID, no files, Evidence Missing and a Detail saying why.
 type Run struct {
 	RunID          string       `json:"run_id"`
+	Detail         string       `json:"detail,omitempty"`
 	Phase          wfa.Phase    `json:"phase"`
 	Params         wfa.Params   `json:"params"`
 	ReportedStatus string       `json:"reported_status"`
@@ -280,7 +283,7 @@ func (r *Repo) Reconcile(id, runID string) ([]wfa.EquityPoint, error) {
 
 func (e Experiment) run(runID string) (Run, error) {
 	for _, run := range e.Runs {
-		if run.RunID == runID {
+		if run.RunID == runID && ValidRunID(runID) {
 			return run, nil
 		}
 	}
@@ -328,7 +331,17 @@ func (r *Repo) load(dir string) Experiment {
 	seen := map[string]bool{}
 	for _, mr := range e.report.Runs() {
 		if mr.Outcome == nil || mr.Outcome.RunID == "" {
-			continue // the process failed before Trader assigned a RunID
+			// The attempt ended before Trader assigned a RunID: it stays in the
+			// count, so the experiment's evidence can never read complete.
+			run := Run{Phase: mr.Phase, Params: mr.Params, Evidence: Missing, Detail: "no RunID: " + orNone(mr.Err)}
+			if mr.Outcome != nil {
+				run.ReportedStatus, run.Reported = mr.Outcome.Status, mr.Outcome.Summary
+				if mr.Err == "" && mr.Outcome.Error != "" {
+					run.Detail = "no RunID: " + mr.Outcome.Error
+				}
+			}
+			e.Runs = append(e.Runs, run)
+			continue
 		}
 		id := mr.Outcome.RunID
 		switch {
@@ -394,8 +407,8 @@ func (r *Repo) checkRun(e *Experiment, run Run, checked map[string]bool) Run {
 				state, detail = Invalid, err.Error()
 			case rec.RunID != run.RunID:
 				state, detail = Invalid, fmt.Sprintf("run_id is %q", rec.RunID)
-			case rec.Status == runPending:
-				state, detail = Invalid, "Trader had not finished the run"
+			case !Terminal[rec.Status]:
+				state, detail = Invalid, fmt.Sprintf("status %q is not a terminal Trader status", rec.Status)
 			default:
 				run.Record = &rec
 			}
@@ -419,6 +432,9 @@ func (r *Repo) checkRun(e *Experiment, run Run, checked map[string]bool) Run {
 func (e Experiment) overall() Evidence {
 	if len(e.Problems) > 0 || e.Manifest != Verified {
 		return Untrusted
+	}
+	if len(e.Runs) == 0 {
+		return Missing // a report with no runs has no evidence to be complete
 	}
 	for _, run := range e.Runs {
 		if run.Evidence == Untrusted {
@@ -592,4 +608,11 @@ func sortedKeys(m map[string]string) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func orNone(s string) string {
+	if s == "" {
+		return "no error recorded"
+	}
+	return s
 }
