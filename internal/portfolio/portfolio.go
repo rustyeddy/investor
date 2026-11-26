@@ -135,6 +135,19 @@ type Experiment struct {
 	sums   map[string]string
 }
 
+// CompleteRunCount reports how many manifest run attempts have all their
+// authoritative Trader artifacts verified. An attempt without a RunID remains
+// in Runs and cannot count as complete.
+func (e Experiment) CompleteRunCount() int {
+	count := 0
+	for _, run := range e.Runs {
+		if run.Evidence == Complete {
+			count++
+		}
+	}
+	return count
+}
+
 // Repo is an open Portfolio checkout or worktree.
 type Repo struct{ root *os.Root }
 
