@@ -109,18 +109,12 @@ func printList(w io.Writer, all []portfolio.Experiment) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "ID\tEVIDENCE\tSTATUS\tSTRATEGY\tINSTRUMENT\tINTERVAL\tRUNS\tNOTES\tPATH")
 	for _, e := range all {
-		complete := 0
-		for _, r := range e.Runs {
-			if r.Evidence == portfolio.Complete {
-				complete++
-			}
-		}
 		notes := "missing"
 		if e.Notes {
 			notes = "present"
 		}
 		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%d/%d complete\t%s\t%s\n", orDash(e.ID), e.Evidence, orDash(e.Status),
-			orDash(e.Strategy), orDash(e.Instrument), orDash(e.Interval), complete, len(e.Runs), notes, e.Path)
+			orDash(e.Strategy), orDash(e.Instrument), orDash(e.Interval), e.CompleteRunCount(), len(e.Runs), notes, e.Path)
 	}
 	if err := tw.Flush(); err != nil {
 		return err
