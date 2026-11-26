@@ -31,6 +31,8 @@ policy (Trader ADR-093).
   cross it: Investor reads data, runs backtests and studies, and reads orders,
   fills, positions and risk decisions only through it. Investor never calls an
   order endpoint. Never read Trader's files or databases, or call a broker directly.
+  The one exception is finalized backtest run directories that Trader writes to
+  the Portfolio ingress (see [Investor and Portfolio](#investor-and-portfolio)).
 - **Code reuse:** Investor may import Trader's dependency-free leaf packages, as
   shared value types only:
   `github.com/rustyeddy/trader/num` (exact decimals) and
@@ -57,6 +59,36 @@ policy (Trader ADR-093).
   never has a live order path, before or after that.
 - **Credentials and policy:** Investor holds no broker credentials; Trader does.
   Never silently change trading risk policy.
+
+## Investor and Portfolio
+
+The Portfolio repository (`rustyeddy/portfolio`, checked out at `/srv/portfolio`
+by default) is the source of truth for backtest runs and studies once their
+evidence is finalized and archived. See [docs/portfolio.md](docs/portfolio.md).
+
+- **Access:** Investor may read and write the Portfolio repository, create
+  branches and worktrees in it, commit, push, and open Portfolio pull requests.
+  Investor never merges a Portfolio PR, never switches or modifies the main
+  Portfolio checkout, and never writes into an existing experiment package.
+- **Trader's runs:** Trader writes each run to its results root, configured on the
+  shared filesystem as `/srv/portfolio/.incoming/runs` (gitignored). Investor reads
+  a run there only after its `run.json` reports a terminal status (`completed`,
+  `failed` or `cancelled`), and copies it byte for byte. Trader knows nothing of
+  Portfolio's layout or Git. Investor reads no other Trader files.
+- **Workflow order:** one branch, worktree and PR per experiment, in this order:
+  prepare (branch and worktree) before the run, run, archive finalized runs into
+  that worktree, publish (commit, push, open the PR). Never archive into the main
+  checkout or another experiment's branch, never commit an active run, and never
+  present partial or failed evidence as complete.
+- **Immutable evidence:** once archived, `experiment.json`, Trader's `run.json`,
+  `events.jsonl` and `account.jsonl`, `archive.json` and `checksums.sha256` are
+  never edited. A correction is a new, reviewed package, not a changed file.
+- **Notes:** `notes.org` (Emacs Org mode) holds questions, observations and
+  hypotheses. It is editable in the experiment's open PR and in later notes-only
+  PRs, is not covered by `checksums.sha256`, and labels a hypothesis as one until
+  evidence supports it. The fixed `report.md` is not a place for ideas.
+- **Credentials:** pushes and PRs use the Git and `gh` credentials already on the
+  machine. Investor stores no GitHub token, and Trader needs none.
 
 ## Git and review rules
 

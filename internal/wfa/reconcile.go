@@ -21,11 +21,22 @@ func ReconcileRun(reportPath, runID string, journal io.Reader) ([]EquityPoint, e
 	if err := json.Unmarshal(data, &report); err != nil {
 		return nil, fmt.Errorf("read Investor report: %w", err)
 	}
-	runs := report.Training
-	if report.OOS != nil {
-		runs = append(runs, *report.OOS)
+	return report.Reconcile(runID, journal)
+}
+
+// Runs is every run in the report, training first, then the OOS run.
+func (r Report) Runs() []Run {
+	runs := append([]Run(nil), r.Training...)
+	if r.OOS != nil {
+		runs = append(runs, *r.OOS)
 	}
-	for _, run := range runs {
+	return runs
+}
+
+// Reconcile validates the account journal of the report's completed run runID
+// against that run's summary and returns the equity curve.
+func (r Report) Reconcile(runID string, journal io.Reader) ([]EquityPoint, error) {
+	for _, run := range r.Runs() {
 		if run.OK() && run.Outcome.RunID == runID {
 			points, err := ReconcileAccount(journal, *run.Outcome.Summary)
 			if err != nil {
