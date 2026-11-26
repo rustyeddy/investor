@@ -89,9 +89,11 @@ journal and its provenance.
 
 The [WFA-01 baseline](https://github.com/rustyeddy/portfolio/tree/main/backtests/emax/EURUSD/H1/wfa01/run1)
 selected short 5, long 50, stop 0.01, with −12.91% training and +10.66% OOS net
-return. Trader REST artifact retrieval is tracked in
-[Trader #700](https://github.com/rustyeddy/trader/issues/700). The WFA-02 real-data
-run, artifact archive, and result comparison are pending that interface.
+return. Trader's run files reach Investor through the Portfolio ingress
+(`/srv/portfolio/.incoming/runs`, Trader's `results.root`) rather than a REST
+interface; see [portfolio.md](portfolio.md). The WFA-02 real-data run, its
+archive and the result comparison are pending
+[Investor #48](https://github.com/rustyeddy/investor/issues/48).
 
 `trader_executable` names the trader binary; the report records the version it prints
 (`trader version`, for example `v0.5.1`) as `trader_version`, or `unknown`. It is
@@ -103,11 +105,12 @@ the binary, so build the binaries from those checkouts first.
 
 ## Where official results go
 
-Official reports are recorded in the Portfolio repository, `/srv/portfolio/backtests`,
-by passing it as `--out`. That is only a directory: Investor has no dependency on
-the Portfolio repository, writes nothing else there, and never overwrites a report.
-Scratch and test runs should use another `--out`. Committing a report there is a
-separate step.
+Official reports belong in the Portfolio repository, archived as experiment
+packages with their Trader runs and checksums; see [portfolio.md](portfolio.md)
+for the layout, the workflow and `investor portfolio`. Until `investor` prepares
+and archives packages itself, pass a prepared Portfolio worktree's `backtests`
+directory as `--out`, never the main checkout. Investor never overwrites a
+report. Scratch and test runs should use another `--out`.
 
 ## Reproduce
 
@@ -117,7 +120,7 @@ Adjacent checkouts: `../trader`, `../strategies`, `../investor`.
 (cd ../strategies && go build -o bin/emax ./cmd/emax)
 (cd ../trader && go build -o bin/trader ./cmd/trader && ./bin/trader serve)   # another terminal; needs the canonical data under /srv/data (--data-root)
 make build
-./bin/investor wfa run --spec examples/wfa-emax-eurusd.json --out /srv/portfolio/backtests
+./bin/investor wfa run --spec examples/wfa-emax-eurusd.json --out /srv/portfolio.worktrees/<experiment>/backtests   # a prepared worktree (docs/portfolio.md)
 ```
 
 The preflight needs Trader's HTTP API: `trader_api.base_url` in the spec (or

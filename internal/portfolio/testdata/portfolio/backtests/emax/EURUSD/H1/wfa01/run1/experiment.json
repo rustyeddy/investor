@@ -1,0 +1,972 @@
+{
+  "id": "wfa01-emax-eurusd-h1-run1",
+  "status": "complete",
+  "created_at": "2026-11-24T05:21:09.090642597Z",
+  "spec": {
+    "id": "wfa01-emax-eurusd-h1-run1",
+    "instrument": "EURUSD",
+    "interval": "h1",
+    "train": {
+      "from": "2010-01-01T00:00:00Z",
+      "to": "2015-01-01T00:00:00Z"
+    },
+    "test": {
+      "from": "2015-01-01T00:00:00Z",
+      "to": "2016-01-01T00:00:00Z"
+    },
+    "holdout_start": "2023-01-01T00:00:00Z",
+    "trader_api": {
+      "base_url": "http://127.0.0.1:18080",
+      "token_env": "TRADER_API_TOKEN"
+    },
+    "strategy": {
+      "executable": "/tmp/claude-1000/-home-rusty-src-investor/be4e9c3c-381c-461f-956c-baa79cecf58a/scratchpad/bin/emax",
+      "trader": "127.0.0.1:19100",
+      "tick": "0.00001"
+    },
+    "grid": {
+      "short": [
+        5,
+        10
+      ],
+      "long": [
+        20,
+        50
+      ],
+      "stop": [
+        "0.005",
+        "0.01"
+      ]
+    },
+    "selection": {
+      "metric": "net_return",
+      "min_trades": 30
+    },
+    "run_timeout": "30m0s",
+    "expected_initial_balance": "10000",
+    "expected_currency": "USD",
+    "trader_repo": "../trader",
+    "strategies_repo": "../strategies"
+  },
+  "data": [
+    {
+      "phase": "train",
+      "window": {
+        "from": "2010-01-01T00:00:00Z",
+        "to": "2015-01-01T00:00:00Z"
+      },
+      "source": "oanda",
+      "bars": 32678,
+      "fingerprint": "8a4838f3c5bd544cb23202931c250f5d38d76928348399c1350489cf646a97e2",
+      "complete": true,
+      "gaps": 7,
+      "retrieved_at": "2026-11-24T05:21:09.576031943Z"
+    },
+    {
+      "phase": "oos",
+      "window": {
+        "from": "2015-01-01T00:00:00Z",
+        "to": "2016-01-01T00:00:00Z"
+      },
+      "source": "oanda",
+      "bars": 6211,
+      "fingerprint": "022099351dbe9ffcb29d7dc831e9a2f86dddddf0d097f7b12892879726c418fb",
+      "complete": true,
+      "gaps": 1,
+      "retrieved_at": "2026-11-24T05:21:09.708490085Z"
+    }
+  ],
+  "training": [
+    {
+      "phase": "train",
+      "params": {
+        "short": 5,
+        "long": 20,
+        "stop": "0.005"
+      },
+      "window": {
+        "from": "2010-01-01T00:00:00Z",
+        "to": "2015-01-01T00:00:00Z"
+      },
+      "exit_code": 0,
+      "outcome": {
+        "run_id": "run_01M8600D2S5GXVTPTXP5G89AYC",
+        "status": "completed",
+        "summary": {
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "trades": 1852,
+          "wins": 561,
+          "losses": 1287,
+          "realized": {
+            "amount": "-2816.8703",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "7183.1297",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "7240.40142",
+            "currency": "USD"
+          }
+        },
+        "raw_summary": {
+          "strategy": "remote",
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "orders": {
+            "submitted": 5558,
+            "filled": 3705,
+            "rejected": 171,
+            "cancelled": 1681,
+            "pending": 1
+          },
+          "trades": 1852,
+          "wins": 561,
+          "losses": 1287,
+          "break_even": 4,
+          "realized": {
+            "amount": "-2816.8703",
+            "currency": "USD"
+          },
+          "unrealized": {
+            "amount": "57.27172",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "7183.1297",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "7240.40142",
+            "currency": "USD"
+          },
+          "open": [
+            {
+              "instrument": "EURUSD",
+              "direction": "short",
+              "units": "11833",
+              "entry_price": "1.21495",
+              "mark_price": "1.21011"
+            }
+          ]
+        }
+      },
+      "stdout": "run run_01M8600D2S5GXVTPTXP5G89AYC: completed\n{\"strategy\":\"remote\",\"account\":\"sim123\",\"initial_balance\":{\"amount\":\"10000\",\"currency\":\"USD\"},\"bars\":32678,\"orders\":{\"submitted\":5558,\"filled\":3705,\"rejected\":171,\"cancelled\":1681,\"pending\":1},\"trades\":1852,\"wins\":561,\"losses\":1287,\"break_even\":4,\"realized\":{\"amount\":\"-2816.8703\",\"currency\":\"USD\"},\"unrealized\":{\"amount\":\"57.27172\",\"currency\":\"USD\"},\"balance\":{\"amount\":\"7183.1297\",\"currency\":\"USD\"},\"equity\":{\"amount\":\"7240.40142\",\"currency\":\"USD\"},\"open\":[{\"instrument\":\"EURUSD\",\"direction\":\"short\",\"units\":\"11833\",\"entry_price\":\"1.21495\",\"mark_price\":\"1.21011\"}]}\n",
+      "started": "2026-11-24T05:21:09.719953935Z"
+    },
+    {
+      "phase": "train",
+      "params": {
+        "short": 5,
+        "long": 20,
+        "stop": "0.01"
+      },
+      "window": {
+        "from": "2010-01-01T00:00:00Z",
+        "to": "2015-01-01T00:00:00Z"
+      },
+      "exit_code": 0,
+      "outcome": {
+        "run_id": "run_01M8600EKREPX3KNCWEWEWQN2R",
+        "status": "completed",
+        "summary": {
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "trades": 1852,
+          "wins": 567,
+          "losses": 1281,
+          "realized": {
+            "amount": "-1605.49753",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "8394.50247",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "8427.96623",
+            "currency": "USD"
+          }
+        },
+        "raw_summary": {
+          "strategy": "remote",
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "orders": {
+            "submitted": 5558,
+            "filled": 3705,
+            "rejected": 10,
+            "cancelled": 1842,
+            "pending": 1
+          },
+          "trades": 1852,
+          "wins": 567,
+          "losses": 1281,
+          "break_even": 4,
+          "realized": {
+            "amount": "-1605.49753",
+            "currency": "USD"
+          },
+          "unrealized": {
+            "amount": "33.46376",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "8394.50247",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "8427.96623",
+            "currency": "USD"
+          },
+          "open": [
+            {
+              "instrument": "EURUSD",
+              "direction": "short",
+              "units": "6914",
+              "entry_price": "1.21495",
+              "mark_price": "1.21011"
+            }
+          ]
+        }
+      },
+      "stdout": "run run_01M8600EKREPX3KNCWEWEWQN2R: completed\n{\"strategy\":\"remote\",\"account\":\"sim123\",\"initial_balance\":{\"amount\":\"10000\",\"currency\":\"USD\"},\"bars\":32678,\"orders\":{\"submitted\":5558,\"filled\":3705,\"rejected\":10,\"cancelled\":1842,\"pending\":1},\"trades\":1852,\"wins\":567,\"losses\":1281,\"break_even\":4,\"realized\":{\"amount\":\"-1605.49753\",\"currency\":\"USD\"},\"unrealized\":{\"amount\":\"33.46376\",\"currency\":\"USD\"},\"balance\":{\"amount\":\"8394.50247\",\"currency\":\"USD\"},\"equity\":{\"amount\":\"8427.96623\",\"currency\":\"USD\"},\"open\":[{\"instrument\":\"EURUSD\",\"direction\":\"short\",\"units\":\"6914\",\"entry_price\":\"1.21495\",\"mark_price\":\"1.21011\"}]}\n",
+      "started": "2026-11-24T05:21:11.286867641Z"
+    },
+    {
+      "phase": "train",
+      "params": {
+        "short": 5,
+        "long": 50,
+        "stop": "0.005"
+      },
+      "window": {
+        "from": "2010-01-01T00:00:00Z",
+        "to": "2015-01-01T00:00:00Z"
+      },
+      "exit_code": 0,
+      "outcome": {
+        "run_id": "run_01M8600G71CJMCNKHKGP2RTV5P",
+        "status": "completed",
+        "summary": {
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "trades": 1108,
+          "wins": 297,
+          "losses": 811,
+          "realized": {
+            "amount": "-1981.57345",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "8018.42655",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "8120.23791",
+            "currency": "USD"
+          }
+        },
+        "raw_summary": {
+          "strategy": "remote",
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "orders": {
+            "submitted": 3326,
+            "filled": 2217,
+            "rejected": 156,
+            "cancelled": 952,
+            "pending": 1
+          },
+          "trades": 1108,
+          "wins": 297,
+          "losses": 811,
+          "break_even": 0,
+          "realized": {
+            "amount": "-1981.57345",
+            "currency": "USD"
+          },
+          "unrealized": {
+            "amount": "101.81136",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "8018.42655",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "8120.23791",
+            "currency": "USD"
+          },
+          "open": [
+            {
+              "instrument": "EURUSD",
+              "direction": "short",
+              "units": "13188",
+              "entry_price": "1.21783",
+              "mark_price": "1.21011"
+            }
+          ]
+        }
+      },
+      "stdout": "run run_01M8600G71CJMCNKHKGP2RTV5P: completed\n{\"strategy\":\"remote\",\"account\":\"sim123\",\"initial_balance\":{\"amount\":\"10000\",\"currency\":\"USD\"},\"bars\":32678,\"orders\":{\"submitted\":3326,\"filled\":2217,\"rejected\":156,\"cancelled\":952,\"pending\":1},\"trades\":1108,\"wins\":297,\"losses\":811,\"break_even\":0,\"realized\":{\"amount\":\"-1981.57345\",\"currency\":\"USD\"},\"unrealized\":{\"amount\":\"101.81136\",\"currency\":\"USD\"},\"balance\":{\"amount\":\"8018.42655\",\"currency\":\"USD\"},\"equity\":{\"amount\":\"8120.23791\",\"currency\":\"USD\"},\"open\":[{\"instrument\":\"EURUSD\",\"direction\":\"short\",\"units\":\"13188\",\"entry_price\":\"1.21783\",\"mark_price\":\"1.21011\"}]}\n",
+      "started": "2026-11-24T05:21:12.927537757Z"
+    },
+    {
+      "phase": "train",
+      "params": {
+        "short": 5,
+        "long": 50,
+        "stop": "0.01"
+      },
+      "window": {
+        "from": "2010-01-01T00:00:00Z",
+        "to": "2015-01-01T00:00:00Z"
+      },
+      "exit_code": 0,
+      "outcome": {
+        "run_id": "run_01M8600HQTXC2C9W9CYKG2C28R",
+        "status": "completed",
+        "summary": {
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "trades": 1108,
+          "wins": 300,
+          "losses": 808,
+          "realized": {
+            "amount": "-1346.3092",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "8653.6908",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "8708.58",
+            "currency": "USD"
+          }
+        },
+        "raw_summary": {
+          "strategy": "remote",
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "orders": {
+            "submitted": 3326,
+            "filled": 2217,
+            "rejected": 13,
+            "cancelled": 1095,
+            "pending": 1
+          },
+          "trades": 1108,
+          "wins": 300,
+          "losses": 808,
+          "break_even": 0,
+          "realized": {
+            "amount": "-1346.3092",
+            "currency": "USD"
+          },
+          "unrealized": {
+            "amount": "54.8892",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "8653.6908",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "8708.58",
+            "currency": "USD"
+          },
+          "open": [
+            {
+              "instrument": "EURUSD",
+              "direction": "short",
+              "units": "7110",
+              "entry_price": "1.21783",
+              "mark_price": "1.21011"
+            }
+          ]
+        }
+      },
+      "stdout": "run run_01M8600HQTXC2C9W9CYKG2C28R: completed\n{\"strategy\":\"remote\",\"account\":\"sim123\",\"initial_balance\":{\"amount\":\"10000\",\"currency\":\"USD\"},\"bars\":32678,\"orders\":{\"submitted\":3326,\"filled\":2217,\"rejected\":13,\"cancelled\":1095,\"pending\":1},\"trades\":1108,\"wins\":300,\"losses\":808,\"break_even\":0,\"realized\":{\"amount\":\"-1346.3092\",\"currency\":\"USD\"},\"unrealized\":{\"amount\":\"54.8892\",\"currency\":\"USD\"},\"balance\":{\"amount\":\"8653.6908\",\"currency\":\"USD\"},\"equity\":{\"amount\":\"8708.58\",\"currency\":\"USD\"},\"open\":[{\"instrument\":\"EURUSD\",\"direction\":\"short\",\"units\":\"7110\",\"entry_price\":\"1.21783\",\"mark_price\":\"1.21011\"}]}\n",
+      "started": "2026-11-24T05:21:14.489096179Z"
+    },
+    {
+      "phase": "train",
+      "params": {
+        "short": 10,
+        "long": 20,
+        "stop": "0.005"
+      },
+      "window": {
+        "from": "2010-01-01T00:00:00Z",
+        "to": "2015-01-01T00:00:00Z"
+      },
+      "exit_code": 0,
+      "outcome": {
+        "run_id": "run_01M8600K5VZB40RTCQPQBA8GJ4",
+        "status": "completed",
+        "summary": {
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "trades": 1356,
+          "wins": 404,
+          "losses": 951,
+          "realized": {
+            "amount": "-3197.36234",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "6802.63766",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "6856.8747",
+            "currency": "USD"
+          }
+        },
+        "raw_summary": {
+          "strategy": "remote",
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "orders": {
+            "submitted": 4070,
+            "filled": 2713,
+            "rejected": 202,
+            "cancelled": 1154,
+            "pending": 1
+          },
+          "trades": 1356,
+          "wins": 404,
+          "losses": 951,
+          "break_even": 1,
+          "realized": {
+            "amount": "-3197.36234",
+            "currency": "USD"
+          },
+          "unrealized": {
+            "amount": "54.23704",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "6802.63766",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "6856.8747",
+            "currency": "USD"
+          },
+          "open": [
+            {
+              "instrument": "EURUSD",
+              "direction": "short",
+              "units": "11206",
+              "entry_price": "1.21495",
+              "mark_price": "1.21011"
+            }
+          ]
+        }
+      },
+      "stdout": "run run_01M8600K5VZB40RTCQPQBA8GJ4: completed\n{\"strategy\":\"remote\",\"account\":\"sim123\",\"initial_balance\":{\"amount\":\"10000\",\"currency\":\"USD\"},\"bars\":32678,\"orders\":{\"submitted\":4070,\"filled\":2713,\"rejected\":202,\"cancelled\":1154,\"pending\":1},\"trades\":1356,\"wins\":404,\"losses\":951,\"break_even\":1,\"realized\":{\"amount\":\"-3197.36234\",\"currency\":\"USD\"},\"unrealized\":{\"amount\":\"54.23704\",\"currency\":\"USD\"},\"balance\":{\"amount\":\"6802.63766\",\"currency\":\"USD\"},\"equity\":{\"amount\":\"6856.8747\",\"currency\":\"USD\"},\"open\":[{\"instrument\":\"EURUSD\",\"direction\":\"short\",\"units\":\"11206\",\"entry_price\":\"1.21495\",\"mark_price\":\"1.21011\"}]}\n",
+      "started": "2026-11-24T05:21:15.961595751Z"
+    },
+    {
+      "phase": "train",
+      "params": {
+        "short": 10,
+        "long": 20,
+        "stop": "0.01"
+      },
+      "window": {
+        "from": "2010-01-01T00:00:00Z",
+        "to": "2015-01-01T00:00:00Z"
+      },
+      "exit_code": 0,
+      "outcome": {
+        "run_id": "run_01M8600MMC5H1W2XPYDPAJB6YA",
+        "status": "completed",
+        "summary": {
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "trades": 1356,
+          "wins": 412,
+          "losses": 943,
+          "realized": {
+            "amount": "-1713.5373",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "8286.4627",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "8319.4957",
+            "currency": "USD"
+          }
+        },
+        "raw_summary": {
+          "strategy": "remote",
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "orders": {
+            "submitted": 4070,
+            "filled": 2713,
+            "rejected": 16,
+            "cancelled": 1340,
+            "pending": 1
+          },
+          "trades": 1356,
+          "wins": 412,
+          "losses": 943,
+          "break_even": 1,
+          "realized": {
+            "amount": "-1713.5373",
+            "currency": "USD"
+          },
+          "unrealized": {
+            "amount": "33.033",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "8286.4627",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "8319.4957",
+            "currency": "USD"
+          },
+          "open": [
+            {
+              "instrument": "EURUSD",
+              "direction": "short",
+              "units": "6825",
+              "entry_price": "1.21495",
+              "mark_price": "1.21011"
+            }
+          ]
+        }
+      },
+      "stdout": "run run_01M8600MMC5H1W2XPYDPAJB6YA: completed\n{\"strategy\":\"remote\",\"account\":\"sim123\",\"initial_balance\":{\"amount\":\"10000\",\"currency\":\"USD\"},\"bars\":32678,\"orders\":{\"submitted\":4070,\"filled\":2713,\"rejected\":16,\"cancelled\":1340,\"pending\":1},\"trades\":1356,\"wins\":412,\"losses\":943,\"break_even\":1,\"realized\":{\"amount\":\"-1713.5373\",\"currency\":\"USD\"},\"unrealized\":{\"amount\":\"33.033\",\"currency\":\"USD\"},\"balance\":{\"amount\":\"8286.4627\",\"currency\":\"USD\"},\"equity\":{\"amount\":\"8319.4957\",\"currency\":\"USD\"},\"open\":[{\"instrument\":\"EURUSD\",\"direction\":\"short\",\"units\":\"6825\",\"entry_price\":\"1.21495\",\"mark_price\":\"1.21011\"}]}\n",
+      "started": "2026-11-24T05:21:17.450435701Z"
+    },
+    {
+      "phase": "train",
+      "params": {
+        "short": 10,
+        "long": 50,
+        "stop": "0.005"
+      },
+      "window": {
+        "from": "2010-01-01T00:00:00Z",
+        "to": "2015-01-01T00:00:00Z"
+      },
+      "exit_code": 0,
+      "outcome": {
+        "run_id": "run_01M8600P1S2EC4PSDW179B73RG",
+        "status": "completed",
+        "summary": {
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "trades": 848,
+          "wins": 221,
+          "losses": 624,
+          "realized": {
+            "amount": "-2612.53039",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "7387.46961",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "7481.26761",
+            "currency": "USD"
+          }
+        },
+        "raw_summary": {
+          "strategy": "remote",
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "orders": {
+            "submitted": 2546,
+            "filled": 1697,
+            "rejected": 175,
+            "cancelled": 673,
+            "pending": 1
+          },
+          "trades": 848,
+          "wins": 221,
+          "losses": 624,
+          "break_even": 3,
+          "realized": {
+            "amount": "-2612.53039",
+            "currency": "USD"
+          },
+          "unrealized": {
+            "amount": "93.798",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "7387.46961",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "7481.26761",
+            "currency": "USD"
+          },
+          "open": [
+            {
+              "instrument": "EURUSD",
+              "direction": "short",
+              "units": "12150",
+              "entry_price": "1.21783",
+              "mark_price": "1.21011"
+            }
+          ]
+        }
+      },
+      "stdout": "run run_01M8600P1S2EC4PSDW179B73RG: completed\n{\"strategy\":\"remote\",\"account\":\"sim123\",\"initial_balance\":{\"amount\":\"10000\",\"currency\":\"USD\"},\"bars\":32678,\"orders\":{\"submitted\":2546,\"filled\":1697,\"rejected\":175,\"cancelled\":673,\"pending\":1},\"trades\":848,\"wins\":221,\"losses\":624,\"break_even\":3,\"realized\":{\"amount\":\"-2612.53039\",\"currency\":\"USD\"},\"unrealized\":{\"amount\":\"93.798\",\"currency\":\"USD\"},\"balance\":{\"amount\":\"7387.46961\",\"currency\":\"USD\"},\"equity\":{\"amount\":\"7481.26761\",\"currency\":\"USD\"},\"open\":[{\"instrument\":\"EURUSD\",\"direction\":\"short\",\"units\":\"12150\",\"entry_price\":\"1.21783\",\"mark_price\":\"1.21011\"}]}\n",
+      "started": "2026-11-24T05:21:18.90336593Z"
+    },
+    {
+      "phase": "train",
+      "params": {
+        "short": 10,
+        "long": 50,
+        "stop": "0.01"
+      },
+      "window": {
+        "from": "2010-01-01T00:00:00Z",
+        "to": "2015-01-01T00:00:00Z"
+      },
+      "exit_code": 0,
+      "outcome": {
+        "run_id": "run_01M8600QHT7XAH3M3ANVDGGAB5",
+        "status": "completed",
+        "summary": {
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "trades": 848,
+          "wins": 231,
+          "losses": 614,
+          "realized": {
+            "amount": "-1749.80146",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "8250.19854",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "8302.53242",
+            "currency": "USD"
+          }
+        },
+        "raw_summary": {
+          "strategy": "remote",
+          "account": "sim123",
+          "initial_balance": {
+            "amount": "10000",
+            "currency": "USD"
+          },
+          "bars": 32678,
+          "orders": {
+            "submitted": 2546,
+            "filled": 1697,
+            "rejected": 23,
+            "cancelled": 825,
+            "pending": 1
+          },
+          "trades": 848,
+          "wins": 231,
+          "losses": 614,
+          "break_even": 3,
+          "realized": {
+            "amount": "-1749.80146",
+            "currency": "USD"
+          },
+          "unrealized": {
+            "amount": "52.33388",
+            "currency": "USD"
+          },
+          "balance": {
+            "amount": "8250.19854",
+            "currency": "USD"
+          },
+          "equity": {
+            "amount": "8302.53242",
+            "currency": "USD"
+          },
+          "open": [
+            {
+              "instrument": "EURUSD",
+              "direction": "short",
+              "units": "6779",
+              "entry_price": "1.21783",
+              "mark_price": "1.21011"
+            }
+          ]
+        }
+      },
+      "stdout": "run run_01M8600QHT7XAH3M3ANVDGGAB5: completed\n{\"strategy\":\"remote\",\"account\":\"sim123\",\"initial_balance\":{\"amount\":\"10000\",\"currency\":\"USD\"},\"bars\":32678,\"orders\":{\"submitted\":2546,\"filled\":1697,\"rejected\":23,\"cancelled\":825,\"pending\":1},\"trades\":848,\"wins\":231,\"losses\":614,\"break_even\":3,\"realized\":{\"amount\":\"-1749.80146\",\"currency\":\"USD\"},\"unrealized\":{\"amount\":\"52.33388\",\"currency\":\"USD\"},\"balance\":{\"amount\":\"8250.19854\",\"currency\":\"USD\"},\"equity\":{\"amount\":\"8302.53242\",\"currency\":\"USD\"},\"open\":[{\"instrument\":\"EURUSD\",\"direction\":\"short\",\"units\":\"6779\",\"entry_price\":\"1.21783\",\"mark_price\":\"1.21011\"}]}\n",
+      "started": "2026-11-24T05:21:20.440651534Z"
+    }
+  ],
+  "scores": [
+    {
+      "params": {
+        "short": 5,
+        "long": 20,
+        "stop": "0.005"
+      },
+      "run_id": "run_01M8600D2S5GXVTPTXP5G89AYC",
+      "trades": 1852,
+      "score": "-0.27595986",
+      "eligible": true
+    },
+    {
+      "params": {
+        "short": 5,
+        "long": 20,
+        "stop": "0.01"
+      },
+      "run_id": "run_01M8600EKREPX3KNCWEWEWQN2R",
+      "trades": 1852,
+      "score": "-0.15720338",
+      "eligible": true
+    },
+    {
+      "params": {
+        "short": 5,
+        "long": 50,
+        "stop": "0.005"
+      },
+      "run_id": "run_01M8600G71CJMCNKHKGP2RTV5P",
+      "trades": 1108,
+      "score": "-0.18797621",
+      "eligible": true
+    },
+    {
+      "params": {
+        "short": 5,
+        "long": 50,
+        "stop": "0.01"
+      },
+      "run_id": "run_01M8600HQTXC2C9W9CYKG2C28R",
+      "trades": 1108,
+      "score": "-0.12914200",
+      "eligible": true
+    },
+    {
+      "params": {
+        "short": 10,
+        "long": 20,
+        "stop": "0.005"
+      },
+      "run_id": "run_01M8600K5VZB40RTCQPQBA8GJ4",
+      "trades": 1356,
+      "score": "-0.31431253",
+      "eligible": true
+    },
+    {
+      "params": {
+        "short": 10,
+        "long": 20,
+        "stop": "0.01"
+      },
+      "run_id": "run_01M8600MMC5H1W2XPYDPAJB6YA",
+      "trades": 1356,
+      "score": "-0.16805043",
+      "eligible": true
+    },
+    {
+      "params": {
+        "short": 10,
+        "long": 50,
+        "stop": "0.005"
+      },
+      "run_id": "run_01M8600P1S2EC4PSDW179B73RG",
+      "trades": 848,
+      "score": "-0.25187324",
+      "eligible": true
+    },
+    {
+      "params": {
+        "short": 10,
+        "long": 50,
+        "stop": "0.01"
+      },
+      "run_id": "run_01M8600QHT7XAH3M3ANVDGGAB5",
+      "trades": 848,
+      "score": "-0.16974676",
+      "eligible": true
+    }
+  ],
+  "selected": {
+    "short": 5,
+    "long": 50,
+    "stop": "0.01"
+  },
+  "rationale": "highest training net_return -0.12914200 among 8 eligible of 8 (ties: smaller long, short, stop); chosen from training only.",
+  "oos": {
+    "phase": "oos",
+    "params": {
+      "short": 5,
+      "long": 50,
+      "stop": "0.01"
+    },
+    "window": {
+      "from": "2015-01-01T00:00:00Z",
+      "to": "2016-01-01T00:00:00Z"
+    },
+    "exit_code": 0,
+    "outcome": {
+      "run_id": "run_01M8600S0W2PX33XJXVGXV770B",
+      "status": "completed",
+      "summary": {
+        "account": "sim123",
+        "initial_balance": {
+          "amount": "10000",
+          "currency": "USD"
+        },
+        "bars": 6211,
+        "trades": 172,
+        "wins": 52,
+        "losses": 119,
+        "realized": {
+          "amount": "1004.69216",
+          "currency": "USD"
+        },
+        "balance": {
+          "amount": "11004.69216",
+          "currency": "USD"
+        },
+        "equity": {
+          "amount": "11066.00628",
+          "currency": "USD"
+        }
+      },
+      "raw_summary": {
+        "strategy": "remote",
+        "account": "sim123",
+        "initial_balance": {
+          "amount": "10000",
+          "currency": "USD"
+        },
+        "bars": 6211,
+        "orders": {
+          "submitted": 518,
+          "filled": 345,
+          "rejected": 9,
+          "cancelled": 163,
+          "pending": 1
+        },
+        "trades": 172,
+        "wins": 52,
+        "losses": 119,
+        "break_even": 1,
+        "realized": {
+          "amount": "1004.69216",
+          "currency": "USD"
+        },
+        "unrealized": {
+          "amount": "61.31412",
+          "currency": "USD"
+        },
+        "balance": {
+          "amount": "11004.69216",
+          "currency": "USD"
+        },
+        "equity": {
+          "amount": "11066.00628",
+          "currency": "USD"
+        },
+        "open": [
+          {
+            "instrument": "EURUSD",
+            "direction": "short",
+            "units": "10068",
+            "entry_price": "1.09309",
+            "mark_price": "1.087"
+          }
+        ]
+      }
+    },
+    "stdout": "run run_01M8600S0W2PX33XJXVGXV770B: completed\n{\"strategy\":\"remote\",\"account\":\"sim123\",\"initial_balance\":{\"amount\":\"10000\",\"currency\":\"USD\"},\"bars\":6211,\"orders\":{\"submitted\":518,\"filled\":345,\"rejected\":9,\"cancelled\":163,\"pending\":1},\"trades\":172,\"wins\":52,\"losses\":119,\"break_even\":1,\"realized\":{\"amount\":\"1004.69216\",\"currency\":\"USD\"},\"unrealized\":{\"amount\":\"61.31412\",\"currency\":\"USD\"},\"balance\":{\"amount\":\"11004.69216\",\"currency\":\"USD\"},\"equity\":{\"amount\":\"11066.00628\",\"currency\":\"USD\"},\"open\":[{\"instrument\":\"EURUSD\",\"direction\":\"short\",\"units\":\"10068\",\"entry_price\":\"1.09309\",\"mark_price\":\"1.087\"}]}\n",
+    "started": "2026-11-24T05:21:21.944870537Z"
+  },
+  "provenance": {
+    "strategy_build": "dae269a1c0934910c9c20edb1aff571a5483d9bc",
+    "trader_build": "6f4c2760d8564e9369be1518b0010aa316b3cb1f",
+    "trader_initial_balance": "10000 USD",
+    "trader_risk_per_trade": "unknown: not exposed by Trader; not verified"
+  },
+  "limitations": [
+    "The chosen configuration is the training-score maximum over a small fixed grid; the OOS result is one sample.",
+    "Net return is a plumbing metric, not evidence of an edge.",
+    "A build identity is the checkout's commit, assumed to be what the binaries were built from.",
+    "Preflight checks bars inside each window; it does not check the strategy's warm-up bars before it."
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "run_id": "run_01M8600S0W2PX33XJXVGXV770B",
+  "kind": "backtest",
+  "strategy": {
+    "name": "remote",
+    "transport": "tcp",
+    "addr": "127.0.0.1:55408"
+  },
+  "source": "oanda",
+  "interval": "h1",
+  "instruments": [
+    "EURUSD"
+  ],
+  "from": "2015-01-01T00:00:00Z",
+  "to": "2016-01-01T00:00:00Z",
+  "started_at": "2026-11-24T05:21:21.948146131Z",
+  "ended_at": "2026-11-24T05:21:22.248208198Z",
+  "status": "completed",
+  "result": {
+    "strategy": "remote",
+    "account": "sim123",
+    "initial_balance": {
+      "amount": "10000",
+      "currency": "USD"
+    },
+    "bars": 6211,
+    "orders": {
+      "submitted": 518,
+      "filled": 345,
+      "rejected": 9,
+      "cancelled": 163,
+      "pending": 1
+    },
+    "trades": 172,
+    "wins": 52,
+    "losses": 119,
+    "break_even": 1,
+    "realized": {
+      "amount": "1004.69216",
+      "currency": "USD"
+    },
+    "unrealized": {
+      "amount": "61.31412",
+      "currency": "USD"
+    },
+    "balance": {
+      "amount": "11004.69216",
+      "currency": "USD"
+    },
+    "equity": {
+      "amount": "11066.00628",
+      "currency": "USD"
+    },
+    "open": [
+      {
+        "instrument": "EURUSD",
+        "direction": "short",
+        "units": "10068",
+        "entry_price": "1.09309",
+        "mark_price": "1.087"
+      }
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+#+TITLE: <experiment id>: notes
+#+STARTUP: content
+
+Notes are not evidence. Tie each point to a RunID, file or figure, and label a
+hypothesis as one until evidence supports it. Not covered by checksums.sha256.
+
+* Observations
+* Questions
+* Hypotheses
+* Follow-up
