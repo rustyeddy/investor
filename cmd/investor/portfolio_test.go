@@ -73,3 +73,35 @@ func TestPortfolioRefusesMissingEvidence(t *testing.T) {
 		}
 	}
 }
+
+func TestPortfolioArchiveNeedsAWorktree(t *testing.T) {
+	report := testPortfolio + "/backtests/emax/EURUSD/H1/wfa01/run1/experiment.json"
+	for _, args := range [][]string{
+		{"archive", t.TempDir(), report},
+		{"archive", t.TempDir(), "no-such-report.json"},
+		{"archive", t.TempDir()},
+	} {
+		if out, err := portfolioCmd(t, args...); err == nil || out != "" {
+			t.Fatalf("%v: output %q, err %v", args, out, err)
+		}
+	}
+}
+
+func TestPrintArchive(t *testing.T) {
+	var out bytes.Buffer
+	e := portfolio.Experiment{ID: "x", Path: "backtests/p", Evidence: portfolio.Partial, Runs: []portfolio.Run{{}}}
+	rec := portfolio.ArchiveRecord{Runs: []portfolio.ArchivedRun{{RunID: "run_1", TraderStatus: "failed",
+		Files:   []portfolio.ArchivedFile{{Name: "run.json", Origin: portfolio.OriginCopied}, {Name: "events.jsonl", Origin: portfolio.OriginArchived}},
+		Missing: []string{"account.jsonl"}}}}
+	if err := printArchive(&out, e, rec); err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"run_1", "failed", "account.jsonl", "x: evidence partial, 0/1 runs complete, at backtests/p (not committed)"} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("output lacks %q:\n%s", want, out.String())
+		}
+	}
+	if strings.Contains(out.String(), "events.jsonl") {
+		t.Fatal("a file that was already archived is not listed as copied")
+	}
+}

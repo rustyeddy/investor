@@ -1,8 +1,9 @@
-// Package portfolio reads the Portfolio repository: the archived experiment
-// packages under backtests/, the Trader runs each manifest references, and the
-// checksums that certify them. It only reads. Every file is opened through an
-// os.Root, so no path can leave the repository, and evidence must be a regular
-// file, not a symlink. See docs/portfolio.md.
+// Package portfolio reads and archives into the Portfolio repository: the
+// experiment packages under backtests/, the Trader runs each manifest references,
+// and the checksums that certify them. Reading writes nothing; Archive writes only
+// into an experiment's own Git worktree. Every file is opened through an os.Root,
+// so no path can leave the repository, and evidence must be a regular file, not a
+// symlink. See docs/portfolio.md.
 package portfolio
 
 import (

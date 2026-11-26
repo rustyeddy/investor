@@ -13,8 +13,9 @@ import (
 	"github.com/rustyeddy/investor/internal/portfolio"
 )
 
-// newPortfolioCommand is `investor portfolio`: read-only access to archived
-// experiments in the Portfolio repository. All logic is in internal/portfolio.
+// newPortfolioCommand is `investor portfolio`: reading archived experiments in the
+// Portfolio repository and archiving runs into an experiment's worktree. All logic
+// is in internal/portfolio.
 func newPortfolioCommand(stdout io.Writer) *cobra.Command {
 	root := os.Getenv(portfolio.RootEnv)
 	if root == "" {
@@ -22,11 +23,11 @@ func newPortfolioCommand(stdout io.Writer) *cobra.Command {
 	}
 	cmd := &cobra.Command{
 		Use:   "portfolio",
-		Short: "Read archived experiments in the Portfolio repository",
+		Short: "Read and archive experiments in the Portfolio repository",
 		Long: "Lists, summarizes and opens archived experiment packages, verifying every file against the package's\n" +
-			"checksums.sha256. Nothing is written. See docs/portfolio.md.",
+			"checksums.sha256; only archive writes, and only into an experiment's worktree. See docs/portfolio.md.",
 	}
-	cmd.PersistentFlags().StringVar(&root, "root", root, "Portfolio checkout or worktree (default from "+portfolio.RootEnv+")")
+	cmd.PersistentFlags().StringVar(&root, "root", root, "Portfolio checkout or worktree; for archive, the main checkout (default from "+portfolio.RootEnv+")")
 	withRepo := func(f func(*portfolio.Repo, []string) error) func(*cobra.Command, []string) error {
 		return func(_ *cobra.Command, args []string) error {
 			repo, err := portfolio.Open(root)
@@ -100,7 +101,29 @@ func newPortfolioCommand(stdout io.Writer) *cobra.Command {
 			return json.NewEncoder(stdout).Encode(curve)
 		}),
 	}
-	cmd.AddCommand(list, summary, cat, reconcile)
+	var packagePath string
+	archive := &cobra.Command{
+		Use:   "archive <worktree> <report.json>",
+		Short: "Copy a report's finished Trader runs into the experiment's worktree",
+		Long: "Copies the report as experiment.json and each Trader run it names, byte for byte, from\n" +
+			"<root>/" + portfolio.IngressDir + " into a package in <worktree>, which must be a linked worktree of --root\n" +
+			"on branch " + portfolio.BranchPrefix + "<experiment-id>. A new experiment needs --path. A partial package that already\n" +
+			"has the report's id is completed without changing anything in it. Nothing is committed.",
+		Args: cobra.ExactArgs(2),
+		RunE: func(_ *cobra.Command, args []string) error {
+			report, err := os.ReadFile(args[1])
+			if err != nil {
+				return err
+			}
+			e, rec, err := portfolio.Archive(portfolio.ArchiveRequest{Portfolio: root, Worktree: args[0], Report: report, Path: packagePath})
+			if err != nil {
+				return err
+			}
+			return printArchive(stdout, e, rec)
+		},
+	}
+	archive.Flags().StringVar(&packagePath, "path", "", "new package: backtests/<strategy>/<INSTRUMENT>/<Interval>/<experiment>/<run>")
+	cmd.AddCommand(list, summary, cat, reconcile, archive)
 	return cmd
 }
 
@@ -125,6 +148,28 @@ func printList(w io.Writer, all []portfolio.Experiment) error {
 		}
 	}
 	return nil
+}
+
+// printArchive says what was archived and how complete the package now is.
+func printArchive(w io.Writer, e portfolio.Experiment, rec portfolio.ArchiveRecord) error {
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "RUN\tTRADER STATUS\tCOPIED\tMISSING")
+	for _, run := range rec.Runs {
+		var copied []string
+		for _, f := range run.Files {
+			if f.Origin == portfolio.OriginCopied {
+				copied = append(copied, f.Name)
+			}
+		}
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", run.RunID, orDash(run.TraderStatus),
+			orDash(strings.Join(copied, ",")), orDash(strings.Join(run.Missing, ",")))
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	_, err := fmt.Fprintf(w, "%s: evidence %s, %d/%d runs complete, at %s (not committed)\n",
+		e.ID, e.Evidence, e.CompleteRunCount(), len(e.Runs), e.Path)
+	return err
 }
 
 func orDash(s string) string {

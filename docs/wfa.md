@@ -107,10 +107,10 @@ the binary, so build the binaries from those checkouts first.
 
 Official reports belong in the Portfolio repository, archived as experiment
 packages with their Trader runs and checksums; see [portfolio.md](portfolio.md)
-for the layout, the workflow and `investor portfolio`. Until `investor` prepares
-and archives packages itself, pass a prepared Portfolio worktree's `backtests`
-directory as `--out`, never the main checkout. Investor never overwrites a
-report. Scratch and test runs should use another `--out`.
+for the layout, the workflow and `investor portfolio`. Write the report to a
+scratch `--out` directory, never into the main checkout, then give
+`<out>/<id>.json` to `investor portfolio archive`, which copies it into the
+experiment's worktree as `experiment.json`. Investor never overwrites a report.
 
 ## Reproduce
 
@@ -120,7 +120,8 @@ Adjacent checkouts: `../trader`, `../strategies`, `../investor`.
 (cd ../strategies && go build -o bin/emax ./cmd/emax)
 (cd ../trader && go build -o bin/trader ./cmd/trader && ./bin/trader serve)   # another terminal; needs the canonical data under /srv/data (--data-root)
 make build
-./bin/investor wfa run --spec examples/wfa-emax-eurusd.json --out /srv/portfolio.worktrees/<experiment>/backtests   # a prepared worktree (docs/portfolio.md)
+./bin/investor wfa run --spec examples/wfa-emax-eurusd.json --out /tmp/wfa-reports
+./bin/investor portfolio archive /srv/portfolio.worktrees/<experiment> /tmp/wfa-reports/<id>.json --path <package>   # docs/portfolio.md
 ```
 
 The preflight needs Trader's HTTP API: `trader_api.base_url` in the spec (or
