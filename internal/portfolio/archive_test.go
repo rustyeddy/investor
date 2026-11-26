@@ -470,3 +470,83 @@ func TestArchiveRefusesACompletePackage(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+// Completion closes a package, so it must not happen while anything is lacking.
+func TestArchiveDoesNotCloseAPackageThatWouldStayIncomplete(t *testing.T) {
+	report, _ := sourceReport(t)
+	noRunID := bytes.Replace(report, []byte(`"run_id":"`+runID(2)+`"`), []byte(`"run_id":""`), 1)
+	for name, tc := range map[string]struct {
+		report  []byte
+		arrange func(*workspace)
+		lacking string
+	}{
+		"a run is absent": {report, func(w *workspace) { os.RemoveAll(filepath.Dir(w.ingress(2, RunFile))) },
+			runID(2) + " run.json,events.jsonl,account.jsonl"},
+		"a journal is absent": {report, func(w *workspace) { os.Remove(w.ingress(3, AccountFile)) }, runID(3) + " account.jsonl"},
+		"a failed run lacks a journal": {report, func(w *workspace) {
+			w.put(w.ingress(1, RunFile), []byte(fmt.Sprintf(`{"run_id":%q,"status":"failed"}`, runID(1))))
+			os.Remove(w.ingress(1, EventsFile))
+		}, runID(1) + " events.jsonl"},
+		"an attempt without a RunID": {noRunID, func(*workspace) {}, "attempt (no RunID"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if name == "an attempt without a RunID" && bytes.Equal(noRunID, report) {
+				t.Fatal("the report was not changed")
+			}
+			w := newWorkspace(t, partialPackage(tc.report, nil))
+			req := w.request()
+			req.Report, req.Path = tc.report, ""
+			tc.arrange(w)
+			before := snapshot(t, w.tree)
+
+			_, _, err := Archive(req)
+
+			if err == nil || !strings.Contains(err.Error(), "left unchanged") || !strings.Contains(err.Error(), tc.lacking) {
+				t.Fatalf("err = %v, want it to name %q", err, tc.lacking)
+			}
+			if after := snapshot(t, w.tree); fmt.Sprint(after) != fmt.Sprint(before) {
+				t.Fatalf("the package changed: %v", after)
+			}
+		})
+	}
+}
+
+// The same package completes once what it lacked has arrived.
+func TestArchiveCompletesAfterARefusedAttempt(t *testing.T) {
+	report, _ := sourceReport(t)
+	w := newWorkspace(t, partialPackage(report, nil))
+	req := w.request()
+	req.Path = ""
+	journal, err := os.ReadFile(w.ingress(3, AccountFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Remove(w.ingress(3, AccountFile))
+	if _, _, err := Archive(req); err == nil {
+		t.Fatal("an incomplete completion was accepted")
+	}
+	w.put(w.ingress(3, AccountFile), journal)
+
+	e, _, err := Archive(req)
+
+	if err != nil || e.Evidence != Complete {
+		t.Fatalf("evidence = %s, err = %v", e.Evidence, err)
+	}
+}
+
+// A package moved aside by an interrupted completion may be the only copy of
+// uncommitted notes, so nothing runs over it.
+func TestArchiveStopsAtAPackageLeftAside(t *testing.T) {
+	w := newWorkspace(t, nil)
+	left := filepath.Join(w.tree, "backtests/emax/EURUSD/H1/wfa09", stagingPrefix+newID+asideSuffix, NotesFile)
+	w.put(left, []byte("only copy"))
+
+	_, _, err := Archive(w.request())
+
+	if err == nil || !strings.Contains(err.Error(), "only copy") || !strings.Contains(err.Error(), "Recovery") {
+		t.Fatalf("err = %v", err)
+	}
+	if data, rerr := os.ReadFile(left); rerr != nil || string(data) != "only copy" {
+		t.Fatalf("left aside = %q, %v", data, rerr)
+	}
+}

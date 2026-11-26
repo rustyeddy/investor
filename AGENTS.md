@@ -70,8 +70,9 @@ evidence is finalized and archived. See [docs/portfolio.md](docs/portfolio.md).
   branches and worktrees in it, commit, push, and open Portfolio pull requests.
   Investor never merges a Portfolio PR, never switches or modifies the main
   Portfolio checkout, and never writes into an existing experiment package, with
-  one exception: completing a package that was merged partial. That adds only the
-  missing run files and `archive.json`, appends their lines to
+  one exception: completing a package that was merged partial. That happens only
+  when it makes the package complete, adds only the missing run files and
+  `archive.json`, appends their lines to
   `checksums.sha256`, changes no existing file or line, and goes through its own
   branch and PR. A package with `archive.json` is closed.
 - **Trader's runs:** Trader writes each run to its results root, configured on the

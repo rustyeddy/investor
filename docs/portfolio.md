@@ -97,8 +97,8 @@ with branch `research/<experiment>` checked out. It commits nothing.
 - A source file that changes while it is read stops the archive, as does a
   symlink. If no run file at all is found, nothing is written.
 - The package is assembled in a `.staging-<experiment>` directory, checked by the
-  reader and renamed into place. If an archive is killed part way, remove what it
-  left in the worktree (`git status` shows it) and run it again.
+  reader and renamed into place. If an archive is killed part way, see
+  [Recovery](#recovery).
 - The ingress is left as it was. Clearing it is manual.
 
 `archive.json` (schema version 1) records the experiment id, package path, time,
@@ -121,8 +121,14 @@ This is the one way an existing package gains files. The report must be byte for
 byte the package's `experiment.json`, the package must verify, and it must have no
 `archive.json` yet. Existing files are not changed; a copy in the ingress that
 differs from an archived file stops the archive. `checksums.sha256` keeps its
-lines and gains lines for the added files. Once a package has `archive.json`,
-complete or not, it is closed.
+lines and gains lines for the added files.
+
+Completion happens only when the result reads `complete`: every run attempt in
+the manifest with all three of Trader's files. If any is lacking, the command says
+which and leaves the package unchanged, so it can be run again when they arrive.
+There is no override. A manifest with an attempt that never got a RunID therefore
+cannot be completed. Once a package has `archive.json` it is closed, including a
+new experiment that was archived partial.
 
 The run files must be in the ingress. Runs written elsewhere, as WFA-02's were,
 are first copied there unchanged (`cp -a <results-root>/run_... <root>/.incoming/runs/`).
@@ -143,6 +149,21 @@ hypothesis as one until evidence supports it:
 ** HYPOTHESIS: 2015 trended more than the training years
    Untested. Compare ADX by year before acting on it.
 ```
+
+### Recovery
+
+An archive killed part way can leave directories beside the package, in its parent
+directory. They are ignored by Git, so look with `ls -a`:
+
+| Left behind | Package directory | What to do |
+|---|---|---|
+| `.staging-<experiment>` only | as before (absent for a new experiment) | remove the staging directory |
+| `.staging-<experiment>.old` and `.staging-<experiment>` | **absent** | `.old` is the package as it was: `mv .staging-<experiment>.old <run-dir>`, then remove `.staging-<experiment>` |
+| `.staging-<experiment>.old` only | present | the completed package is in place: check it with `investor portfolio --root <worktree> summary <experiment>` (evidence `complete`), then remove `.old` |
+
+Never remove `.old` while the package directory is absent: it may be the only copy
+of uncommitted files such as `notes.org`. Then run the archive again if the
+package is not complete. `archive` refuses to run while `.old` exists.
 
 ## Reading the repository
 

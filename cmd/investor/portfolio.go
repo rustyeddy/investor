@@ -108,7 +108,8 @@ func newPortfolioCommand(stdout io.Writer) *cobra.Command {
 		Long: "Copies the report as experiment.json and each Trader run it names, byte for byte, from\n" +
 			"<root>/" + portfolio.IngressDir + " into a package in <worktree>, which must be a linked worktree of --root\n" +
 			"on branch " + portfolio.BranchPrefix + "<experiment-id>. A new experiment needs --path. A partial package that already\n" +
-			"has the report's id is completed without changing anything in it. Nothing is committed.",
+			"has the report's id is completed without changing anything in it, and only if that makes it complete.\n" +
+			"Nothing is committed.",
 		Args: cobra.ExactArgs(2),
 		RunE: func(_ *cobra.Command, args []string) error {
 			report, err := os.ReadFile(args[1])

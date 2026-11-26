@@ -35,6 +35,10 @@ const ArchiveSchemaVersion = 1
 // reader skips it, as it does every hidden directory.
 const stagingPrefix = ".staging-"
 
+// asideSuffix is added to the staging name for the package being replaced, while
+// the completed one is renamed into its place.
+const asideSuffix = ".old"
+
 // Where an archived file came from.
 const (
 	OriginCopied   = "copied"           // copied from the ingress by this archive
@@ -112,6 +116,9 @@ var experimentIDPattern = regexp.MustCompile(`^[A-Za-z0-9]+([._-][A-Za-z0-9]+)*$
 // lacks are added. That needs the same experiment.json bytes, every listed file
 // still verifying and no archive.json yet; nothing in it is changed, and
 // checksums.sha256 keeps its lines and gains lines for the added files.
+// Completion closes the package for good, so it happens only when the result is
+// complete: every run attempt of the manifest with all of Trader's files.
+// Otherwise nothing is changed.
 //
 // The package is assembled in a staging directory beside its place, checked by the
 // reader, and then renamed into place, so a failure leaves the repository as it
@@ -158,8 +165,12 @@ func Archive(req ArchiveRequest) (Experiment, ArchiveRecord, error) {
 		return fail(err)
 	}
 	stage := path.Join(parent, stagingPrefix+report.ID)
+	if _, err := dest.root.Lstat(stage + asideSuffix); !errors.Is(err, fs.ErrNotExist) {
+		return fail(fmt.Errorf("%s was left by an interrupted archive and may hold the only copy of the package: "+
+			"follow Recovery in docs/portfolio.md", stage+asideSuffix))
+	}
 	if err := dest.root.Mkdir(stage, 0o755); err != nil {
-		return fail(fmt.Errorf("staging directory %s (remove one left by an interrupted archive): %w", stage, err))
+		return fail(fmt.Errorf("staging directory %s (if an interrupted archive left it, follow Recovery in docs/portfolio.md): %w", stage, err))
 	}
 	defer dest.root.RemoveAll(stage) // gone already after a successful rename
 
@@ -206,13 +217,40 @@ func Archive(req ArchiveRequest) (Experiment, ArchiveRecord, error) {
 	if err != nil {
 		return fail(err)
 	}
-	if staged := dest.load(stage); len(staged.Problems) > 0 || staged.Evidence == Untrusted {
+	staged := dest.load(stage)
+	if len(staged.Problems) > 0 || staged.Evidence == Untrusted {
 		return fail(fmt.Errorf("the assembled package does not verify: %s", strings.Join(staged.Problems, "; ")))
+	}
+	if existing != nil && staged.Evidence != Complete {
+		return fail(fmt.Errorf("%s would still be %s and completing closes it for good, so it is left unchanged; lacking: %s",
+			final, staged.Evidence, strings.Join(staged.lacking(), "; ")))
 	}
 	if err := dest.install(stage, final, existing != nil); err != nil {
 		return fail(err)
 	}
 	return dest.load(final), rec, nil
+}
+
+// lacking says, per run that is not complete, which files it lacks.
+func (e Experiment) lacking() []string {
+	var out []string
+	for _, run := range e.Runs {
+		if run.Evidence == Complete {
+			continue
+		}
+		if run.RunID == "" {
+			out = append(out, fmt.Sprintf("a %s attempt (%s)", run.Phase, run.Detail))
+			continue
+		}
+		var names []string
+		for _, f := range run.Files {
+			if f.State != Verified {
+				names = append(names, f.Name)
+			}
+		}
+		out = append(out, run.RunID+" "+strings.Join(names, ","))
+	}
+	return out
 }
 
 // parseReport reads what archiving needs from a report: its id and the distinct,
@@ -627,7 +665,7 @@ func (r *Repo) install(stage, final string, replace bool) error {
 		}
 		return r.root.Rename(stage, final)
 	}
-	aside := stage + ".old"
+	aside := stage + asideSuffix
 	if err := r.root.Rename(final, aside); err != nil {
 		return err
 	}
